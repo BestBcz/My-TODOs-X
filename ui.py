@@ -1,789 +1,693 @@
-import os
-
-from components import ThemedOptionCardPlane
-from icons import IconDictionary
-from PyQt5.Qt import QColor, QPoint
-from PyQt5.QtCore import Qt, pyqtSignal, QCoreApplication
-from PyQt5.QtWidgets import QGraphicsDropShadowEffect, QMainWindow, QTextEdit
-from settings_parser import SettingsParser
-from todos_parser import TODOParser
-
-from siui.components.widgets import (
-    SiCheckBox,
-    SiDenseHContainer,
-    SiDenseVContainer,
-    SiLabel,
-    SiSimpleButton,
-    SiSvgLabel,
-    SiSwitch,
-    SiToggleButton,
-)
-from siui.core.animation import SiExpAnimation
-from siui.core.color import Color
-from siui.core.globals import NewGlobal, SiGlobal
-from siui.gui.tooltip import ToolTipWindow
-
-# 创建删除队列
-SiGlobal.todo_list = NewGlobal()
-SiGlobal.todo_list.delete_pile = []
-
-# 创建锁定位置变量
-SiGlobal.todo_list.position_locked = False
-
-# 创建设置文件解析器并写入全局变量
-SiGlobal.todo_list.settings_parser = SettingsParser("./options.ini")
-SiGlobal.todo_list.todos_parser = TODOParser("./todos.ini")
-
-def lock_position(state):
-    SiGlobal.todo_list.position_locked = state
-
-
-# 主题颜色
-def load_colors(is_dark=True):
-    if is_dark is True:  # 深色主题
-        # 加载图标
-        SiGlobal.siui.icons.update(IconDictionary(color="#e1d9e8").icons)
-
-        # 设置颜色
-        SiGlobal.siui.colors["THEME"] = "#e1d9e8"
-        SiGlobal.siui.colors["PANEL_THEME"] = "#0F85D3"
-        SiGlobal.siui.colors["BACKGROUND_COLOR"] = "#252229"
-        SiGlobal.siui.colors["BACKGROUND_DARK_COLOR"] = SiGlobal.siui.colors["INTERFACE_BG_A"]
-        SiGlobal.siui.colors["BORDER_COLOR"] = "#3b373f"
-        SiGlobal.siui.colors["TOOLTIP_BG"] = "ef413a47"
-        SiGlobal.siui.colors["SVG_A"] = SiGlobal.siui.colors["THEME"]
-
-        SiGlobal.siui.colors["THEME_TRANSITION_A"] = "#52389a"
-        SiGlobal.siui.colors["THEME_TRANSITION_B"] = "#9c4e8b"
-
-        SiGlobal.siui.colors["TEXT_A"] = "#FFFFFF"
-        SiGlobal.siui.colors["TEXT_B"] = "#e1d9e8"
-        SiGlobal.siui.colors["TEXT_C"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.75)
-        SiGlobal.siui.colors["TEXT_D"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.6)
-        SiGlobal.siui.colors["TEXT_E"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.5)
-
-        SiGlobal.siui.colors["SWITCH_DEACTIVATE"] = "#D2D2D2"
-        SiGlobal.siui.colors["SWITCH_ACTIVATE"] = "#100912"
-
-        SiGlobal.siui.colors["BUTTON_HOVER"] = "#10FFFFFF"
-        SiGlobal.siui.colors["BUTTON_FLASH"] = "#20FFFFFF"
-
-        SiGlobal.siui.colors["SIMPLE_BUTTON_BG"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.1)
-
-        SiGlobal.siui.colors["TOGGLE_BUTTON_OFF_BG"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0)
-        SiGlobal.siui.colors["TOGGLE_BUTTON_ON_BG"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.1)
-
-    else:  # 亮色主题
-        # 加载图标
-        SiGlobal.siui.icons.update(IconDictionary(color="#0F85D3").icons)
-
-        # 设置颜色
-        SiGlobal.siui.colors["THEME"] = "#0F85D3"
-        SiGlobal.siui.colors["PANEL_THEME"] = "#0F85D3"
-        SiGlobal.siui.colors["BACKGROUND_COLOR"] = "#F3F3F3"
-        SiGlobal.siui.colors["BACKGROUND_DARK_COLOR"] = "#e8e8e8"
-        SiGlobal.siui.colors["BORDER_COLOR"] = "#d0d0d0"
-        SiGlobal.siui.colors["TOOLTIP_BG"] = "#F3F3F3"
-        SiGlobal.siui.colors["SVG_A"] = SiGlobal.siui.colors["THEME"]
-
-        SiGlobal.siui.colors["THEME_TRANSITION_A"] = "#2abed8"
-        SiGlobal.siui.colors["THEME_TRANSITION_B"] = "#2ad98e"
-
-        SiGlobal.siui.colors["TEXT_A"] = "#1f1f2f"
-        SiGlobal.siui.colors["TEXT_B"] = Color.transparency(SiGlobal.siui.colors["TEXT_A"], 0.85)
-        SiGlobal.siui.colors["TEXT_C"] = Color.transparency(SiGlobal.siui.colors["TEXT_A"], 0.75)
-        SiGlobal.siui.colors["TEXT_D"] = Color.transparency(SiGlobal.siui.colors["TEXT_A"], 0.6)
-        SiGlobal.siui.colors["TEXT_E"] = Color.transparency(SiGlobal.siui.colors["TEXT_A"], 0.5)
-
-        SiGlobal.siui.colors["SWITCH_DEACTIVATE"] = "#bec1c7"
-        SiGlobal.siui.colors["SWITCH_ACTIVATE"] = "#F3F3F3"
-
-        SiGlobal.siui.colors["BUTTON_HOVER"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.0625)
-        SiGlobal.siui.colors["BUTTON_FLASH"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.43)
-
-        SiGlobal.siui.colors["SIMPLE_BUTTON_BG"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.6)
-
-        SiGlobal.siui.colors["TOGGLE_BUTTON_OFF_BG"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0)
-        SiGlobal.siui.colors["TOGGLE_BUTTON_ON_BG"] = Color.transparency(SiGlobal.siui.colors["THEME"], 0.1)
-
-    SiGlobal.siui.reloadAllWindowsStyleSheet()
-
-
-# 加载主题颜色
-load_colors(is_dark=False)
-
-
-class SingleSettingOption(SiDenseVContainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setSpacing(2)
-
-        self.title = SiLabel(self)
-        self.title.setFont(SiGlobal.siui.fonts["S_BOLD"])
-        self.title.setAutoAdjustSize(True)
-
-        self.description = SiLabel(self)
-        self.description.setFont(SiGlobal.siui.fonts["S_NORMAL"])
-        self.description.setAutoAdjustSize(True)
-
-        self.addWidget(self.title)
-        self.addWidget(self.description)
-        self.addPlaceholder(4)
-
-    def setTitle(self, title: str, description: str):
-        self.title.setText(title)
-        self.description.setText(description)
-
-    def reloadStyleSheet(self):
-        super().reloadStyleSheet()
-
-        self.title.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_B"]))
-        self.description.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_D"]))
-
-
-class SingleTODOOption(SiDenseHContainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setShrinking(True)
-
-        self.check_box = SiCheckBox(self)
-        self.check_box.resize(12, 12)
-        self.check_box.setText(" ")
-        self.check_box.toggled.connect(self._onChecked)
-
-        self.text_label = SiLabel(self)
-        self.text_label.resize(500 - 48 - 48 - 32, 32)
-        self.text_label.setWordWrap(True)
-        self.text_label.setAutoAdjustSize(True)
-        self.text_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.text_label.setFixedStyleSheet("padding-top: 2px; padding-bottom: 2px")
-
-        self.addWidget(self.check_box)
-        self.addWidget(self.text_label)
-
-        self.move = self.moveTo
-
-        # 初始化时自动载入样式表
-        self.reloadStyleSheet()
-
-    def reloadStyleSheet(self):
-        super().reloadStyleSheet()
-
-        self.text_label.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_B"]))
-
-    def _onChecked(self, state):
-        if state is True:
-            SiGlobal.todo_list.delete_pile.append(self)
-        else:
-            index = SiGlobal.todo_list.delete_pile.index(self)
-            SiGlobal.todo_list.delete_pile.pop(index)
-
-    def setText(self, text: str):
-        self.text_label.setText(text)
-
-    def adjustSize(self):
-        self.setFixedHeight(self.text_label.height())
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.text_label.setFixedWidth(event.size().width() - 48)
-        self.text_label.adjustSize()
-        self.adjustSize()
-
-
-class AppHeaderPanel(SiLabel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.background_label = SiLabel(self)
-        self.background_label.setFixedStyleSheet("border-radius: 8px")
-
-        self.container_h = SiDenseHContainer(self)
-        self.container_h.setAlignCenter(True)
-        self.container_h.setFixedHeight(48)
-        self.container_h.setSpacing(0)
-
-        self.icon = SiSvgLabel(self)
-        self.icon.resize(32, 32)
-        self.icon.setSvgSize(16, 16)
-
-        self.unfold_button = SiToggleButton(self)
-        self.unfold_button.setFixedHeight(32)
-        self.unfold_button.attachment().setText("0个待办事项")
-        self.unfold_button.setChecked(True)
-
-        self.settings_button = SiToggleButton(self)
-        self.settings_button.resize(32, 32)
-        self.settings_button.setHint("设置")
-        self.settings_button.setChecked(False)
-
-        self.add_todo_button = SiToggleButton(self)
-        self.add_todo_button.resize(32, 32)
-        self.add_todo_button.setHint("添加新待办")
-        self.add_todo_button.setChecked(False)
-
-        self.container_h.addPlaceholder(16)
-        self.container_h.addWidget(self.icon)
-        self.container_h.addPlaceholder(4)
-        self.container_h.addWidget(self.unfold_button)
-
-        self.container_h.addPlaceholder(16, "right")
-        self.container_h.addWidget(self.settings_button, "right")
-        self.container_h.addPlaceholder(16, "right")
-        self.container_h.addWidget(self.add_todo_button, "right")
-
-        # 按钮加入全局变量
-        SiGlobal.todo_list.todo_list_unfold_button = self.unfold_button
-        SiGlobal.todo_list.add_todo_unfold_button = self.add_todo_button
-        SiGlobal.todo_list.settings_unfold_button = self.settings_button
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.background_label.resize(event.size().width(), 48)
-        self.container_h.resize(event.size().width(), 48)
-
-    def reloadStyleSheet(self):
-        super().reloadStyleSheet()
-        # 按钮颜色
-        self.unfold_button.setStateColor(SiGlobal.siui.colors["TOGGLE_BUTTON_OFF_BG"],
-                                         SiGlobal.siui.colors["TOGGLE_BUTTON_ON_BG"])
-        self.settings_button.setStateColor(SiGlobal.siui.colors["TOGGLE_BUTTON_OFF_BG"],
-                                           SiGlobal.siui.colors["TOGGLE_BUTTON_ON_BG"])
-        self.add_todo_button.setStateColor(SiGlobal.siui.colors["TOGGLE_BUTTON_OFF_BG"],
-                                           SiGlobal.siui.colors["TOGGLE_BUTTON_ON_BG"])
-
-        # svg 图标
-        self.settings_button.attachment().load(SiGlobal.siui.icons["fi-rr-menu-burger"])
-        self.add_todo_button.attachment().load(SiGlobal.siui.icons["fi-rr-apps-add"])
-        self.icon.load('<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" '
-                       'data-name="Layer 1" viewBox="0 0 24 24" width="512" height="512"><path d="M0,8v-1C0,4.243,'
-                       '2.243,2,5,2h1V1c0-.552,.447-1,1-1s1,.448,1,1v1h8V1c0-.552,.447-1,1-1s1,.448,1,1v1h1c2.757,0,'
-                       '5,2.243,5,5v1H0Zm24,2v9c0,2.757-2.243,5-5,5H5c-2.757,0-5-2.243-5-5V10H24Zm-6.168,'
-                       '3.152c-.384-.397-1.016-.409-1.414-.026l-4.754,4.582c-.376,.376-1.007,'
-                       '.404-1.439-.026l-2.278-2.117c-.403-.375-1.035-.354-1.413,.052-.376,.404-.353,1.037,.052,'
-                       '1.413l2.252,2.092c.566,.567,1.32,.879,2.121,.879s1.556-.312,2.108-.866l4.74-4.568c.397-.383,'
-                       '.409-1.017,.025-1.414Z" fill="{}" /></svg>'.format(SiGlobal.siui.colors["SVG_A"]).encode())
-
-        self.background_label.setStyleSheet("""background-color: {}; border: 1px solid {}""".format(
-            SiGlobal.siui.colors["BACKGROUND_COLOR"], SiGlobal.siui.colors["BORDER_COLOR"]))
-        self.unfold_button.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_B"]))
-
-
-class TODOListPanel(ThemedOptionCardPlane):
-    todoAmountChanged = pyqtSignal(int)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setTitle("全部待办")
-        self.setUseSignals(True)
-
-        self.no_todo_label = SiLabel(self)
-        self.no_todo_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.no_todo_label.setAutoAdjustSize(True)
-        self.no_todo_label.setText("当前没有待办哦")
-        self.no_todo_label.setAlignment(Qt.AlignCenter)
-        self.no_todo_label.hide()
-
-        self.body().setUseMoveTo(False)
-        self.body().setShrinking(True)
-        self.body().setAdjustWidgetsSize(True)
-
-        self.footer().setFixedHeight(64)
-        self.footer().setSpacing(8)
-        self.footer().setAlignCenter(True)
-
-        self.complete_all_button = SiSimpleButton(self)
-        self.complete_all_button.resize(32, 32)
-        self.complete_all_button.setHint("全部完成")
-        self.complete_all_button.clicked.connect(self._onCompleteAllButtonClicked)
-
-        self.footer().addWidget(self.complete_all_button, "right")
-
-        # 全局方法
-        SiGlobal.todo_list.addTODO = self.addTODO
-
-    def updateTODOAmount(self):
-        todo_amount = len(self.body().widgets_top)
-        self.todoAmountChanged.emit(todo_amount)
-
-        if todo_amount == 0:
-            self.no_todo_label.show()
-        else:
-            self.no_todo_label.hide()
-
-    def reloadStyleSheet(self):
-        self.setThemeColor(SiGlobal.siui.colors["PANEL_THEME"])
-        super().reloadStyleSheet()
-
-        self.no_todo_label.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_E"]))
-        self.complete_all_button.attachment().load(SiGlobal.siui.icons["fi-rr-list-check"])
-
-    def _onCompleteAllButtonClicked(self):
-        for obj in self.body().widgets_top:
-            if isinstance(obj, SingleTODOOption):
-                obj.check_box.setChecked(True)
-
-    def addTODO(self, text):
-        new_todo = SingleTODOOption(self)
-        self.body().addWidget(new_todo)
-
-        new_todo.setText(text)
-        new_todo.show()
-        new_todo.adjustSize()
-
-        SiGlobal.todo_list.todo_list_unfold_button.setChecked(True)
-        self.adjustSize()
-        self.updateTODOAmount()
-
-    def adjustSize(self):
-        self.body().adjustSize()
-        super().adjustSize()
-
-    def leaveEvent(self, event):
-        super().leaveEvent(event)
-
-        for index, obj in enumerate(SiGlobal.todo_list.delete_pile):
-            self.body().removeWidget(obj)
-            obj.close()
-
-        SiGlobal.todo_list.delete_pile = []
-
-        if SiGlobal.todo_list.todo_list_unfold_button.isChecked() is True:
-            self.adjustSize()
-            self.updateTODOAmount()
-
-    def showEvent(self, a0):
-        super().showEvent(a0)
-        self.updateTODOAmount()
-        self.setForceUseAnimations(True)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.no_todo_label.resize(event.size().width(), 150)
-
-
-class AddNewTODOPanel(ThemedOptionCardPlane):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setTitle("添加新待办")
-        self.setUseSignals(True)
-
-        self.confirm_button = SiSimpleButton(self)
-        self.confirm_button.resize(32, 32)
-        self.confirm_button.setHint("确认并添加")
-
-        self.cancel_button = SiSimpleButton(self)
-        self.cancel_button.resize(32, 32)
-        self.cancel_button.setHint("取消")
-
-        self.header().addWidget(self.cancel_button, "right")
-        self.header().addWidget(self.confirm_button, "right")
-
-        self.instruction = SiLabel(self)
-        self.instruction.setFont(SiGlobal.siui.fonts["S_BOLD"])
-        self.instruction.setText("请输入待办内容")
-
-        self.text_edit = QTextEdit(self)
-        self.text_edit.setFixedHeight(70)
-        self.text_edit.setFont(SiGlobal.siui.fonts["S_NORMAL"])
-        self.text_edit.lineWrapMode()
-
-        self.body().setAdjustWidgetsSize(True)
-        self.body().setSpacing(4)
-        self.body().addWidget(self.instruction)
-        self.body().addWidget(self.text_edit)
-
-    def adjustSize(self):
-        self.resize(self.width(), 200)
-
-    def reloadStyleSheet(self):
-        self.setThemeColor(SiGlobal.siui.colors["PANEL_THEME"])
-        super().reloadStyleSheet()
-
-        self.confirm_button.attachment().load(SiGlobal.siui.icons["fi-rr-check"])
-        self.cancel_button.attachment().load(SiGlobal.siui.icons["fi-rr-cross"])
-        self.instruction.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_B"]))
-        self.text_edit.setStyleSheet(
-            """
-            border: 1px solid {};
-            background-color: {};
-            border-radius: 4px;
-            padding-left: 8px; padding-right: 8px;
-            color: {}
-            """.format(SiGlobal.siui.colors["BORDER_COLOR"],
-                       SiGlobal.siui.colors["BACKGROUND_DARK_COLOR"],
-                       SiGlobal.siui.colors["TEXT_B"])
-        )
-
-    def showEvent(self, a0):
-        super().showEvent(a0)
-        self.setForceUseAnimations(True)
-
-
-class SettingsPanel(ThemedOptionCardPlane):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setTitle("设置")
-        self.setUseSignals(True)
-
-        # 启用深色模式
-        self.use_dark_mode = SingleSettingOption(self)
-        self.use_dark_mode.setTitle("深色模式", "在深色主题的计算机上提供更佳的视觉效果")
-
-        self.button_use_dark_mode = SiSwitch(self)
-        self.button_use_dark_mode.setFixedHeight(32)
-        self.button_use_dark_mode.toggled.connect(load_colors)
-        self.button_use_dark_mode.toggled.connect(
-            lambda b: SiGlobal.todo_list.settings_parser.modify("USE_DARK_MODE", b))
-        self.button_use_dark_mode.setChecked(SiGlobal.todo_list.settings_parser.options["USE_DARK_MODE"])
-
-        self.use_dark_mode.addWidget(self.button_use_dark_mode)
-        self.use_dark_mode.addPlaceholder(16)
-
-        # 锁定位置
-        self.fix_position = SingleSettingOption(self)
-        self.fix_position.setTitle("锁定位置", "阻止拖动窗口以保持位置不变")
-
-        self.button_fix_position = SiSwitch(self)
-        self.button_fix_position.setFixedHeight(32)
-        self.button_fix_position.toggled.connect(lock_position)
-        self.button_fix_position.toggled.connect(
-            lambda b: SiGlobal.todo_list.settings_parser.modify("FIXED_POSITION", b))
-        self.button_fix_position.setChecked(SiGlobal.todo_list.settings_parser.options["FIXED_POSITION"])
-
-        self.fix_position.addWidget(self.button_fix_position)
-        self.fix_position.addPlaceholder(16)
-
-        # 第三方资源
-        self.third_party_res = SingleSettingOption(self)
-        self.third_party_res.setTitle("第三方资源", "本项目使用了 FlatIcon 提供的图标")
-
-        self.button_to_flaticon = SiSimpleButton(self)
-        self.button_to_flaticon.setFixedHeight(32)
-        self.button_to_flaticon.attachment().setText("前往 FlatIcon")
-        self.button_to_flaticon.clicked.connect(lambda: os.system("start https://flaticon.com/"))
-        self.button_to_flaticon.adjustSize()
-
-        self.third_party_res.addWidget(self.button_to_flaticon)
-        self.third_party_res.addPlaceholder(16)
-
-        # 许可
-        self.license = SingleSettingOption(self)
-        self.license.setTitle("开源许可证", "本项目采用 GNU General Public License v3.0")
-
-        self.button_license = SiSimpleButton(self)
-        self.button_license.setFixedHeight(32)
-        self.button_license.attachment().setText("在 Github 上查看")
-        self.button_license.clicked.connect(
-            lambda: os.system("start https://github.com/ChinaIceF/My-TODOs/blob/main/LICENSE"))
-        self.button_license.adjustSize()
-
-        self.license.addWidget(self.button_license)
-        self.license.addPlaceholder(16)
-
-        # 关于
-        self.about = SingleSettingOption(self)
-        self.about.setTitle("关于此软件", "制作者 霏泠Ice 保留所有权利")
-
-        about_button_set = SiDenseHContainer(self)
-        about_button_set.setFixedHeight(32)
-
-        self.button_github = SiSimpleButton(self)
-        self.button_github.setFixedHeight(32)
-        self.button_github.attachment().setText("Github 主页")
-        self.button_github.clicked.connect(lambda: os.system("start https://github.com/ChinaIceF"))
-        self.button_github.adjustSize()
-
-        self.button_bilibili = SiSimpleButton(self)
-        self.button_bilibili.setFixedHeight(32)
-        self.button_bilibili.attachment().setText("哔哩哔哩 主页")
-        self.button_bilibili.clicked.connect(lambda: os.system("start https://space.bilibili.com/390832893"))
-        self.button_bilibili.adjustSize()
-
-        about_button_set.addWidget(self.button_github)
-        about_button_set.addWidget(self.button_bilibili)
-
-        self.about.addWidget(about_button_set)
-        self.about.addPlaceholder(16)
-
-        # 赞助
-        self.donation = SingleSettingOption(self)
-        self.donation.setTitle("赞助作者", "为爱发电，您的支持是我最大的动力")
-
-        self.button_donation = SiSimpleButton(self)
-        self.button_donation.setFixedHeight(32)
-        self.button_donation.attachment().setText("在 Github 上扫码赞助")
-        self.button_donation.clicked.connect(lambda: os.system("start https://github.com/ChinaIceF/My-TODOs?tab=readme-ov-file#%E8%B5%9E%E5%8A%A9"))
-        self.button_donation.adjustSize()
-
-        self.donation.addWidget(self.button_donation)
-        self.donation.addPlaceholder(16)
-
-        # SiliconUI
-        self.silicon_ui = SiDenseVContainer(self)
-        self.silicon_ui.setAlignCenter(True)
-
-        self.button_silicon_ui = SiSimpleButton(self)
-        self.button_silicon_ui.attachment().setFont(SiGlobal.siui.fonts["S_NORMAL"])
-        self.button_silicon_ui.attachment().setText("基于 PyQt-SiliconUI 编写")
-        self.button_silicon_ui.adjustSize()
-        self.button_silicon_ui.clicked.connect(lambda: os.system("start https://github.com/ChinaIceF/PyQt-SiliconUI"))
-
-        self.silicon_ui.addWidget(self.button_silicon_ui)
-
-        # 添加到body
-        self.body().setAdjustWidgetsSize(True)
-        self.body().addWidget(self.use_dark_mode)
-        self.body().addWidget(self.fix_position)
-        self.body().addWidget(self.third_party_res)
-        self.body().addWidget(self.license)
-        self.body().addWidget(self.about)
-        self.body().addWidget(self.donation)
-        self.body().addWidget(self.silicon_ui)
-        self.body().addPlaceholder(16)
-
-    def reloadStyleSheet(self):
-        self.setThemeColor(SiGlobal.siui.colors["PANEL_THEME"])
-        super().reloadStyleSheet()
-
-        self.button_to_flaticon.setColor(SiGlobal.siui.colors["SIMPLE_BUTTON_BG"])
-        self.button_license.setColor(SiGlobal.siui.colors["SIMPLE_BUTTON_BG"])
-        self.button_github.setColor(SiGlobal.siui.colors["SIMPLE_BUTTON_BG"])
-        self.button_bilibili.setColor(SiGlobal.siui.colors["SIMPLE_BUTTON_BG"])
-        self.button_donation.setColor(SiGlobal.siui.colors["SIMPLE_BUTTON_BG"])
-        self.button_silicon_ui.attachment().setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_E"]))
-
-    def showEvent(self, a0):
-        super().showEvent(a0)
-        self.setForceUseAnimations(True)
-
+"""My-TODOs-X responsive card-style desktop UI."""
+import sys
+from pathlib import Path
+from PyQt5.QtCore import QEvent, QPoint, QRect, QRectF, Qt, QTimer
+from PyQt5.QtGui import QColor, QKeySequence, QPainter
+from PyQt5.QtWidgets import QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListView, QMainWindow, QMenu, QMessageBox, QPushButton, QScrollArea, QShortcut, QSlider, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget
+from platform_services import autostart_enabled, set_autostart
+from reminders import ReminderService
+from settings_service import SettingsService
+from task_store import UNCATEGORIZED
+from widgets import Card, FlowLayout, TaskDelegate, TaskEditor, TaskListView, TaskModel, WeeklyReportDialog, icon, tool_button
 
 class TODOApplication(QMainWindow):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, store, settings=None, tray_available=None, exit_app=True):
+        super().__init__()
+        self.store, self.exit_app = store, exit_app
+        self.settings = settings or SettingsService(store, self)
+        self._exit_requested = self._ready = self._resize_layout_pending = False
+        self._closed = False
+        self._drag_origin = self._resize_origin = None
+        self.category_names = {}
+        self.tray_available = QSystemTrayIcon.isSystemTrayAvailable() if tray_available is None else tray_available
+        self.setWindowTitle("My-TODOs-X")
+        self.setWindowIcon(icon("calendar"))
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setMinimumSize(380, 320)
+        self.setMouseTracking(True)
+        self.settings.error.connect(self.show_error)
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+        self.header = Card()
+        self.header.layout_v.setContentsMargins(12, 8, 12, 8)
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        self.logo, self.count_label = QLabel(), QLabel("没有待办")
+        self.logo.setPixmap(icon("calendar").pixmap(24, 24))
+        self.count_label.setObjectName("headerCount")
+        row.addWidget(self.logo)
+        row.addWidget(self.count_label, 1)
+        self.new_button = tool_button("add", "添加待办 · Ctrl+N", self.new_task)
+        self.settings_button = tool_button("settings", "设置", self.open_settings)
+        self.close_button = tool_button("close", "关闭窗口", self.close)
+        for button in (self.new_button, self.settings_button, self.close_button): row.addWidget(button)
+        self.header.layout_v.addLayout(row)
+        layout.addWidget(self.header)
+        self.pages = QStackedWidget()
+        layout.addWidget(self.pages, 1)
+        self.build_list_page()
+        self.editor = TaskEditor(self)
+        self.editor.saved.connect(self.editor_saved)
+        self.editor.cancelled.connect(self.cancel_editor)
+        self.editor_page = self.scroll_page(self.editor)
+        self.pages.addWidget(self.editor_page)
+        self.build_settings_page()
+        self.build_tray()
+        self.settings.changed.connect(self.setting_changed)
+        self.reminders = ReminderService(store, self)
+        self.reminders.due.connect(self.reminders_due)
+        self.reminders.error.connect(self.show_error)
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(120)
+        self.search_timer.timeout.connect(self.refresh)
+        self.search.textChanged.connect(lambda: self.search_timer.start())
+        for combo in (self.status, self.category_filter, self.sort): combo.currentIndexChanged.connect(self.refresh)
+        self.resize_idle = QTimer(self)
+        self.resize_idle.setSingleShot(True)
+        self.resize_idle.setInterval(120)
+        self.resize_idle.timeout.connect(self.save_geometry)
+        self.settings.set("autostart", autostart_enabled())
+        self.sync_settings_controls()
+        self.apply_theme()
+        self.restore_geometry()
+        self.setWindowOpacity(self.settings.get("window_opacity"))
+        self.apply_top(self.settings.get("always_on_top"))
+        self._ready = True
+        self.reload_categories()
+        self.refresh()
+        QApplication.instance().installEventFilter(self)
+        QApplication.instance().screenRemoved.connect(self.restore_geometry)
+        for sequence, callback in (("Ctrl+N", self.new_task), ("Ctrl+F", self.focus_search), ("Ctrl+,", self.open_settings)):
+            QShortcut(QKeySequence(sequence), self).activated.connect(callback)
+        QShortcut(QKeySequence("Delete"), self.list_view).activated.connect(self.delete_selected)
+        QShortcut(QKeySequence("Return"), self.list_view).activated.connect(self.edit_selected)
+        QTimer.singleShot(0, lambda: self.reminders.start() if not self._closed else None)
 
-        # 窗口周围留白，供阴影使用
-        self.padding = 48
-        self.anchor = QPoint(self.x(), self.y())
-        self.fixed_position = QPoint(SiGlobal.todo_list.settings_parser.options["FIXED_POSITION_X"],
-                                     SiGlobal.todo_list.settings_parser.options["FIXED_POSITION_Y"])
+    @staticmethod
+    def scroll_page(card):
+        scroll = QScrollArea()
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        wrapper = QWidget()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(card)
+        layout.addStretch()
+        scroll.setWidget(wrapper)
+        return scroll
 
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground)  # 设置窗口背景透明
+    def build_list_page(self):
+        self.list_page = Card("全部待办")
+        self.pages.addWidget(self.list_page)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("搜索事项 · Ctrl+F")
+        self.search.setClearButtonEnabled(True)
+        self.list_page.layout_v.addWidget(self.search)
+        controls = FlowLayout()
+        self.status, self.category_filter, self.sort = QComboBox(), QComboBox(), QComboBox()
+        for text, value in (("未完成", "active"), ("已完成", "completed"), ("回收站", "trash")): self.status.addItem(text, value)
+        for text, value in (("手动排序", "manual"), ("截止时间", "due"), ("优先级", "priority"), ("创建时间", "created")): self.sort.addItem(text, value)
+        self.category_filter.setMinimumWidth(105)
+        self.category_filter.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.category_filter.setMinimumContentsLength(5)
+        for widget in (self.status, self.category_filter, self.sort): controls.addWidget(widget)
+        self.list_page.layout_v.addLayout(controls)
+        self.model, self.list_view = TaskModel(self), TaskListView()
+        self.list_view.setModel(self.model)
+        self.list_view.setMouseTracking(True)
+        self.list_view.setFrameShape(QFrame.NoFrame)
+        self.list_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.list_view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.list_view.setResizeMode(QListView.Adjust)
+        self.list_view.setDragDropMode(QAbstractItemView.InternalMove)
+        self.list_view.setDefaultDropAction(Qt.MoveAction)
+        self.list_view.setDropIndicatorShown(True)
+        self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.delegate = TaskDelegate(self, self.list_view)
+        self.list_view.setItemDelegate(self.delegate)
+        self.delegate.toggled.connect(self.toggle_completed)
+        self.delegate.menu_requested.connect(self.task_menu)
+        self.list_view.doubleClicked.connect(lambda index: self.edit_task(index.data(Qt.UserRole).id))
+        self.list_view.customContextMenuRequested.connect(self.list_context_menu)
+        self.model.reordered.connect(lambda ids: self.perform(lambda: self.store.reorder(ids)))
+        self.list_page.layout_v.addWidget(self.list_view, 1)
+        self.empty_label = QLabel("当前没有待办哦")
+        self.empty_label.setAlignment(Qt.AlignCenter)
+        self.empty_label.setObjectName("muted")
+        self.empty_label.setWordWrap(True)
+        self.list_page.layout_v.addWidget(self.empty_label)
+        row = QHBoxLayout()
+        weekly, self.batch_button = QPushButton("每周总结"), QPushButton("全部完成")
+        weekly.clicked.connect(self.open_weekly)
+        self.batch_button.clicked.connect(self.complete_all)
+        row.addWidget(weekly)
+        row.addStretch()
+        row.addWidget(self.batch_button)
+        self.list_page.layout_v.addLayout(row)
 
-        # 初始化全局变量
-        SiGlobal.todo_list.todo_list_unfold_state = True
-        SiGlobal.todo_list.add_todo_unfold_state = False
+    def build_settings_page(self):
+        card = Card("设置")
+        self.settings_controls = {}
+        for key, label in (("dark_mode", "深色模式"), ("position_locked", "锁定窗口位置"), ("always_on_top", "窗口始终在最前"), ("autostart", "登录 Windows 时自动启动"), ("autostart_hidden", "自启后只在托盘运行")):
+            control = QCheckBox(label)
+            control.toggled.connect(lambda value, name=key: self.change_setting(name, value))
+            self.settings_controls[key] = control
+            card.layout_v.addWidget(control)
+        self.settings_controls["autostart"].setEnabled(sys.platform == "win32")
+        row = QHBoxLayout()
+        row.addWidget(QLabel("窗口不透明度"))
+        self.opacity_label = QLabel("100%")
+        row.addStretch()
+        row.addWidget(self.opacity_label)
+        card.layout_v.addLayout(row)
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(30, 100)
+        self.opacity_slider.setSingleStep(1)
+        self.opacity_slider.valueChanged.connect(lambda value: self.settings.set("window_opacity", value/100, deferred=True))
+        self.opacity_slider.sliderReleased.connect(self.settings.flush)
+        card.layout_v.addWidget(self.opacity_slider)
+        label = QLabel("数值越低越透明，背景、文字和按钮会一起变淡。")
+        label.setWordWrap(True)
+        label.setObjectName("muted")
+        card.layout_v.addWidget(label)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("关闭窗口时"))
+        self.close_behavior = QComboBox()
+        for label, value in (("每次询问", "ask"), ("后台常驻", "tray"), ("退出程序", "quit")): self.close_behavior.addItem(label, value)
+        self.close_behavior.currentIndexChanged.connect(lambda: self.change_setting("close_behavior", self.close_behavior.currentData()))
+        row.addWidget(self.close_behavior, 1)
+        card.layout_v.addLayout(row)
+        for text, callback in (("管理分类", self.manage_categories), ("导入旧版 todos.ini", self.import_legacy)):
+            button = QPushButton(text)
+            button.clicked.connect(callback)
+            card.layout_v.addWidget(button)
+        data_label = QLabel(f"数据保存在：\n{self.store.path.parent}")
+        data_label.setWordWrap(True)
+        data_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        data_label.setObjectName("muted")
+        card.layout_v.addWidget(data_label)
+        about = QLabel("My-TODOs-X · 基于霏泠 Ice 的 My-TODOs\nGPL v3 · 本地保存，无需账号")
+        about.setWordWrap(True)
+        about.setObjectName("muted")
+        card.layout_v.addWidget(about)
+        row = QHBoxLayout()
+        back, quit_button = QPushButton("返回清单"), QPushButton("退出程序")
+        back.clicked.connect(self.show_list)
+        quit_button.clicked.connect(self.request_exit)
+        row.addWidget(back)
+        row.addStretch()
+        row.addWidget(quit_button)
+        card.layout_v.addLayout(row)
+        self.settings_page = self.scroll_page(card)
+        self.pages.addWidget(self.settings_page)
 
-        # 初始化工具提示窗口
-        SiGlobal.siui.windows["TOOL_TIP"] = ToolTipWindow()
-        SiGlobal.siui.windows["TOOL_TIP"].show()
-        SiGlobal.siui.windows["TOOL_TIP"].hide_()
-        SiGlobal.siui.windows["MAIN_WINDOW"] = self
+    def build_tray(self):
+        self.tray = QSystemTrayIcon(self.windowIcon(), self)
+        self.tray.setToolTip("My-TODOs-X")
+        self.tray_menu = QMenu(self)
+        for text, callback in (("显示窗口", self.restore_window), ("隐藏窗口", self.hide_to_tray), ("添加待办", self.new_task)):
+            self.tray_menu.addAction(text, callback)
+        self.top_action = self.tray_menu.addAction("窗口始终在最前")
+        self.top_action.setCheckable(True)
+        self.top_action.toggled.connect(lambda value: self.change_setting("always_on_top", value))
+        self.tray_menu.addAction("每周总结", self.open_weekly)
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction("退出程序", self.request_exit)
+        self.tray.setContextMenu(self.tray_menu)
+        self.tray.activated.connect(lambda reason: self.restore_window() if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick) else None)
+        self.tray.messageClicked.connect(self.restore_window)
+        if self.tray_available: self.tray.show()
 
-        # 创建移动动画
-        self.move_animation = SiExpAnimation(self)
-        self.move_animation.setFactor(1 / 4)
-        self.move_animation.setBias(1)
-        self.move_animation.setCurrent([self.x(), self.y()])
-        self.move_animation.ticked.connect(self._onMoveAnimationTicked)
+    def sync_settings_controls(self):
+        for key, control in self.settings_controls.items():
+            control.blockSignals(True)
+            control.setChecked(self.settings.get(key))
+            control.blockSignals(False)
+        self.settings_controls["autostart_hidden"].setEnabled(self.settings.get("autostart") and self.tray_available)
+        self.opacity_slider.blockSignals(True)
+        value = round(self.settings.get("window_opacity")*100)
+        self.opacity_slider.setValue(value)
+        self.opacity_slider.blockSignals(False)
+        self.opacity_label.setText(f"{value}%")
+        self.close_behavior.blockSignals(True)
+        self.close_behavior.setCurrentIndex(self.close_behavior.findData(self.settings.get("close_behavior")))
+        self.close_behavior.blockSignals(False)
+        self.top_action.blockSignals(True)
+        self.top_action.setChecked(self.settings.get("always_on_top"))
+        self.top_action.blockSignals(False)
 
-        # 创建垂直容器
-        self.container_v = SiDenseVContainer(self)
-        self.container_v.setFixedWidth(500)
-        self.container_v.setSpacing(0)
-        self.container_v.setShrinking(True)
-        self.container_v.setAlignCenter(True)
+    def change_setting(self, key, value):
+        if key == "autostart":
+            try:
+                previous = autostart_enabled()
+                set_autostart(value)
+                if not self.settings.set(key, value): set_autostart(previous)
+            except Exception as exc: self.show_error(f"无法修改自启：{exc}")
+            self.sync_settings_controls()
+        elif not self.settings.set(key, value): self.sync_settings_controls()
 
-        # 构建界面
-        # 头
-        self.header_panel = AppHeaderPanel(self)
-        self.header_panel.setFixedWidth(500 - 2 * self.padding)
-        self.header_panel.setFixedHeight(48 + 12)
+    def setting_changed(self, key, value):
+        if key in ("window_x", "window_y", "window_width", "window_height"): return
+        if key == "dark_mode": self.apply_theme()
+        elif key == "window_opacity": self.setWindowOpacity(value)
+        elif key == "always_on_top": self.apply_top(value)
+        self.sync_settings_controls()
 
-        # 设置面板
-        self.settings_panel = SettingsPanel(self)
-        self.settings_panel.setFixedWidth(500 - 2 * self.padding)
-        self.settings_panel.adjustSize()
+    def apply_top(self, enabled):
+        visible, geometry, state = self.isVisible(), self.geometry(), self.windowState()
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, enabled)
+        self.setGeometry(geometry)
+        self.setWindowOpacity(self.settings.get("window_opacity"))
+        if visible:
+            self.show()
+            self.setWindowState(state)
 
-        self.settings_panel_placeholder = SiLabel(self)
-        self.settings_panel_placeholder.setFixedHeight(12)
-        self._onSettingsButtonToggled(False)
+    def apply_theme(self):
+        dark = self.settings.get("dark_mode")
+        bg, text, border = ("#252229", "#e1d9e8", "#3b373f") if dark else ("#f3f3f3", "#353343", "#d7d3dc")
+        field, hover, muted = ("#302b35", "#3a3440", "#a19aaa") if dark else ("#ffffff", "#e5edf6", "#777384")
+        self.setStyleSheet(f"""
+            QWidget {{ color: {text}; font-family: 'Microsoft YaHei UI', 'Segoe UI'; font-size: 13px; }}
+            QDialog, QMenu {{ background: {bg}; }}
+            QFrame#card {{ background: {bg}; border: 1px solid {border}; border-bottom: 2px solid #0F85D3; border-radius: 9px; }}
+            QLabel {{ background: transparent; border: none; }}
+            QLabel#cardTitle {{ font-weight: 600; font-size: 15px; border-left: 3px solid #0F85D3; padding-left: 8px; }}
+            QLabel#headerCount {{ font-weight: 600; }}
+            QLabel#muted {{ color: {muted}; font-size: 12px; }}
+            QListView, QScrollArea, QStackedWidget {{ background: transparent; border: none; outline: none; }}
+            QScrollArea > QWidget > QWidget {{ background: transparent; }}
+            QLineEdit, QTextEdit, QComboBox, QDateTimeEdit {{ background: {field}; border: 1px solid {border}; border-radius: 5px; padding: 5px; selection-background-color: #0F85D3; }}
+            QComboBox {{ padding-right: 20px; }}
+            QComboBox QAbstractItemView {{ background: {field}; color: {text}; selection-background-color: #0F85D3; }}
+            QPushButton, QToolButton {{ background: transparent; border: 1px solid {border}; border-radius: 5px; padding: 5px 9px; }}
+            QToolButton#iconButton {{ border: none; padding: 4px; }}
+            QPushButton:hover, QToolButton:hover {{ background: {hover}; }}
+            QPushButton#primary {{ background: #0F85D3; border-color: #0F85D3; color: white; }}
+            QPushButton:disabled, QCheckBox:disabled {{ color: {muted}; }}
+            QCheckBox {{ spacing: 8px; padding: 5px 0; }}
+            QCheckBox::indicator {{ width: 16px; height: 16px; border: 1px solid {muted}; border-radius: 4px; background: {field}; }}
+            QCheckBox::indicator:checked {{ background: #0F85D3; border-color: #0F85D3; }}
+            QSlider::groove:horizontal {{ height: 5px; background: {border}; border-radius: 2px; }}
+            QSlider::sub-page:horizontal {{ background: #0F85D3; border-radius: 2px; }}
+            QSlider::handle:horizontal {{ width: 16px; margin: -6px 0; background: #0F85D3; border-radius: 8px; }}
+            QScrollBar:vertical {{ width: 8px; background: transparent; margin: 0; }}
+            QScrollBar::handle:vertical {{ background: {border}; border-radius: 4px; min-height: 25px; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+            QMenu {{ border: 1px solid {border}; padding: 4px; }}
+            QMenu::item {{ padding: 7px 24px; }}
+            QMenu::item:selected {{ background: {hover}; }}
+            QToolTip {{ background: {bg}; color: {text}; border: 1px solid {border}; padding: 6px; }}
+        """)
+        if hasattr(self, "delegate"):
+            self.delegate.cache.clear()
+            self.list_view.doItemsLayout()
+            self.list_view.viewport().update()
+        self.update()
 
-        # 添加新待办面板
-        self.add_todo_panel = AddNewTODOPanel(self)
-        self.add_todo_panel.setFixedWidth(500 - 2 * self.padding)
-        self.add_todo_panel.adjustSize()
+    def restore_geometry(self):
+        width, height = self.settings.get("window_width"), self.settings.get("window_height")
+        x, y = self.settings.get("window_x"), self.settings.get("window_y")
+        screen = QApplication.primaryScreen().availableGeometry()
+        rect = QRect(x if x is not None else screen.center().x()-width//2,
+                     y if y is not None else screen.center().y()-height//2, width, height)
+        screens = [s.availableGeometry() for s in QApplication.screens()]
+        best = max(screens, key=lambda s: max(0, s.intersected(rect).width()) * max(0, s.intersected(rect).height()))
+        if not best.intersects(rect): best = screen
+        rect.setSize(rect.size().boundedTo(best.size()).expandedTo(self.minimumSize()))
+        rect.moveLeft(max(best.left(), min(rect.left(), best.right()-rect.width()+1)))
+        rect.moveTop(max(best.top(), min(rect.top(), best.bottom()-rect.height()+1)))
+        self.setGeometry(rect)
 
-        self.add_todo_panel_placeholder = SiLabel(self)
-        self.add_todo_panel_placeholder.setFixedHeight(12)
-        self._onAddTODOButtonToggled(False)
+    def save_geometry(self):
+        if self._ready and not self.isMinimized() and not self.isMaximized():
+            self.settings.set_many({"window_x": self.x(), "window_y": self.y(),
+                                    "window_width": self.width(), "window_height": self.height()}, deferred=True)
 
-        # 全部待办面板
-        self.todo_list_panel = TODOListPanel(self)
-        self.todo_list_panel.setFixedWidth(500 - 2 * self.padding)
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        for inset in range(2, 12, 2):
+            painter.setBrush(QColor(0, 0, 0, 5))
+            painter.drawRoundedRect(QRectF(self.rect().adjusted(inset, inset, -inset, -inset)), 12, 12)
 
-        self.todo_list_panel_placeholder = SiLabel(self)
-        self.todo_list_panel_placeholder.setFixedHeight(12)
-        self._onShowTODOButtonToggled(True)
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not self._ready: return
+        self.save_geometry()
+        self.resize_idle.start()
+        if not self._resize_layout_pending:
+            self._resize_layout_pending = True
+            QTimer.singleShot(0, self.layout_resized_items)
 
-        # <- 添加到垂直容器
-        self.container_v.addWidget(self.header_panel)
-        self.container_v.addWidget(self.settings_panel)
-        self.container_v.addWidget(self.settings_panel_placeholder)
-        self.container_v.addWidget(self.add_todo_panel)
-        self.container_v.addWidget(self.add_todo_panel_placeholder)
-        self.container_v.addWidget(self.todo_list_panel)
-        self.container_v.addWidget(self.todo_list_panel_placeholder)
+    def layout_resized_items(self):
+        self._resize_layout_pending = False
+        self.list_view.doItemsLayout()
 
-        # 绑定界面信号
-        self.header_panel.unfold_button.toggled.connect(self._onShowTODOButtonToggled)
-        self.header_panel.add_todo_button.toggled.connect(self._onAddTODOButtonToggled)
-        self.header_panel.settings_button.toggled.connect(self._onSettingsButtonToggled)
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if self._ready: self.save_geometry()
 
-        self.settings_panel.resized.connect(self._onTODOWindowResized)
-        self.add_todo_panel.resized.connect(self._onTODOWindowResized)
-        self.todo_list_panel.resized.connect(self._onTODOWindowResized)
+    def edges_at(self, point):
+        edges = Qt.Edges()
+        if point.x() < 12: edges |= Qt.LeftEdge
+        elif point.x() >= self.width()-12: edges |= Qt.RightEdge
+        if point.y() < 12: edges |= Qt.TopEdge
+        elif point.y() >= self.height()-12: edges |= Qt.BottomEdge
+        return edges
 
-        self.add_todo_panel.confirm_button.clicked.connect(self._onAddTODOConfirmButtonClicked)
-        self.add_todo_panel.cancel_button.clicked.connect(self._onAddTODOCancelButtonClicked)
+    def eventFilter(self, obj, event):
+        if not self._ready or not isinstance(obj, QWidget) or not (obj is self or self.isAncestorOf(obj)) or obj.window() is not self:
+            return False
+        kind = event.type()
+        if kind in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            point = self.mapFromGlobal(event.globalPos())
+            edges = self.edges_at(point)
+            if kind == QEvent.MouseMove:
+                if self._resize_origin:
+                    origin, geometry, resize_edges = self._resize_origin
+                    delta, rect = event.globalPos()-origin, QRect(geometry)
+                    if resize_edges & Qt.LeftEdge: rect.setLeft(min(geometry.right()-self.minimumWidth()+1, geometry.left()+delta.x()))
+                    if resize_edges & Qt.RightEdge: rect.setRight(max(geometry.left()+self.minimumWidth()-1, geometry.right()+delta.x()))
+                    if resize_edges & Qt.TopEdge: rect.setTop(min(geometry.bottom()-self.minimumHeight()+1, geometry.top()+delta.y()))
+                    if resize_edges & Qt.BottomEdge: rect.setBottom(max(geometry.top()+self.minimumHeight()-1, geometry.bottom()+delta.y()))
+                    self.setGeometry(rect)
+                    return True
+                if self._drag_origin:
+                    origin, position = self._drag_origin
+                    self.move(position + event.globalPos()-origin)
+                    return True
+                if edges in (Qt.LeftEdge | Qt.TopEdge, Qt.RightEdge | Qt.BottomEdge): cursor = Qt.SizeFDiagCursor
+                elif edges in (Qt.RightEdge | Qt.TopEdge, Qt.LeftEdge | Qt.BottomEdge): cursor = Qt.SizeBDiagCursor
+                elif edges & (Qt.LeftEdge | Qt.RightEdge): cursor = Qt.SizeHorCursor
+                elif edges: cursor = Qt.SizeVerCursor
+                else: cursor = Qt.ArrowCursor
+                if edges: self.setCursor(cursor)
+                else: self.unsetCursor()
+            elif kind == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                if edges and not self.isMaximized():
+                    if not self.windowHandle() or not self.windowHandle().startSystemResize(edges):
+                        self._resize_origin = (event.globalPos(), self.geometry(), edges)
+                        self.grabMouse()
+                    return True
+                if obj in (self.header, self.logo, self.count_label) and not self.settings.get("position_locked"):
+                    if not self.windowHandle() or not self.windowHandle().startSystemMove():
+                        self._drag_origin = (event.globalPos(), self.pos())
+                        self.grabMouse()
+                    return True
+            elif kind == QEvent.MouseButtonRelease:
+                if self._resize_origin or self._drag_origin:
+                    self._resize_origin = self._drag_origin = None
+                    self.releaseMouse()
+                    self.save_geometry()
+                    return True
+        return super().eventFilter(obj, event)
 
-        self.todo_list_panel.todoAmountChanged.connect(self._onTODOAmountChanged)
+    def show_error(self, message):
+        QMessageBox.warning(self, "操作未完成", str(message))
 
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setColor(QColor(0, 0, 0, 80))
-        shadow.setOffset(0, 0)
-        shadow.setBlurRadius(48)
-        self.setGraphicsEffect(shadow)
+    def perform(self, operation):
+        try: operation()
+        except Exception as exc:
+            self.show_error(str(exc))
+            return False
+        self.refresh()
+        return True
 
-        self.resize(500, 800)
-        self.move(self.fixed_position.x(), self.fixed_position.y())
-        SiGlobal.siui.reloadAllWindowsStyleSheet()
+    def reload_categories(self):
+        self.category_names = dict(self.store.categories())
+        selected = self.category_filter.currentData()
+        self.category_filter.blockSignals(True)
+        self.category_filter.clear()
+        self.category_filter.addItem("全部分类", None)
+        for key, name in self.category_names.items(): self.category_filter.addItem(name, key)
+        self.category_filter.setCurrentIndex(max(0, self.category_filter.findData(selected)))
+        self.category_filter.blockSignals(False)
+        self.editor.reload_categories()
 
-        # 读取 todos.ini 添加到待办
-        for todo in SiGlobal.todo_list.todos_parser.todos:
-            self.todo_list_panel.addTODO(todo)
+    def refresh(self):
+        status, category, sort, search = self.status.currentData(), self.category_filter.currentData(), self.sort.currentData(), self.search.text()
+        tasks = self.store.query(status, search, category, sort)
+        selected = self.list_view.currentIndex().data(Qt.UserRole)
+        position = self.list_view.verticalScrollBar().value()
+        self.model.set_tasks(tasks, status == "active" and sort == "manual" and not search and category is None)
+        self.delegate.cache.clear()
+        self.list_view.setDragEnabled(self.model.can_reorder)
+        self.list_view.setAcceptDrops(self.model.can_reorder)
+        if selected:
+            for row, task in enumerate(tasks):
+                if task.id == selected.id: self.list_view.setCurrentIndex(self.model.index(row, 0))
+        self.list_view.verticalScrollBar().setValue(position)
+        amount = len(self.store.query())
+        self.count_label.setText(f"{amount} 个待办事项" if amount else "没有待办")
+        self.tray.setToolTip(f"My-TODOs-X · {amount} 个待办")
+        self.empty_label.setVisible(not tasks)
+        self.empty_label.setText("没有匹配的事项" if search or category else {"active": "当前没有待办哦", "completed": "还没有完成记录", "trash": "回收站是空的"}[status])
+        self.batch_button.setText("清空回收站" if status == "trash" else "全部完成")
+        self.batch_button.setVisible(status != "completed")
+        self.batch_button.setEnabled(bool(tasks))
 
+    def show_list(self):
+        self.pages.setCurrentWidget(self.list_page)
+        self.refresh()
 
-    def adjustSize(self):
-        h = (self.header_panel.height() + 12 +
-             self.settings_panel.height() + 12 +
-             self.add_todo_panel.height() + 12 +
-             self.todo_list_panel.height() +
-             2 * self.padding)
-        self.resize(self.width(), h)
-        self.container_v.adjustSize()
+    def focus_search(self):
+        self.show_list()
+        self.search.setFocus()
 
-    def resizeEvent(self, a0):
-        super().resizeEvent(a0)
-        self.container_v.move(0, self.padding)
+    def confirm_unsaved(self):
+        if not self.editor.dirty(): return True
+        choice = QMessageBox.question(self, "未保存的修改", "是否保存当前事项？", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
+        if choice == QMessageBox.Cancel: return False
+        if choice == QMessageBox.Save: return self.editor.save()
+        self.editor.baseline = None
+        return True
 
-    def showEvent(self, a0):
-        super().showEvent(a0)
+    def new_task(self):
+        if not self.confirm_unsaved(): return
+        self.restore_window()
+        self.pages.setCurrentWidget(self.editor_page)
+        self.editor.open()
 
-    def _onTODOWindowResized(self, size):
-        w, h = size
-        self.adjustSize()
-
-    def _onShowTODOButtonToggled(self, state):
-        if state is True:
-            self.todo_list_panel_placeholder.setFixedHeight(12)
-            self.todo_list_panel.adjustSize()
-        else:
-            self.todo_list_panel_placeholder.setFixedHeight(0)
-            self.todo_list_panel.resize(self.todo_list_panel.width(), 0)
-
-    def _onAddTODOButtonToggled(self, state):
-        if state is True:
-            self.add_todo_panel_placeholder.setFixedHeight(12)
-            self.add_todo_panel.adjustSize()
-        else:
-            self.add_todo_panel_placeholder.setFixedHeight(0)
-            self.add_todo_panel.resize(self.add_todo_panel.width(), 0)
-
-    def _onSettingsButtonToggled(self, state):
-        if state is True:
-            self.settings_panel_placeholder.setFixedHeight(12)
-            self.settings_panel.adjustSize()
-        else:
-            self.settings_panel_placeholder.setFixedHeight(0)
-            self.settings_panel.resize(self.settings_panel.width(), 0)
-
-    def _onTODOAmountChanged(self, amount):
-        if amount == 0:
-            self.header_panel.unfold_button.attachment().setText("没有待办")
-        else:
-            self.header_panel.unfold_button.attachment().setText(f"{amount}个待办事项")
-        self.header_panel.unfold_button.adjustSize()
-
-    def _onAddTODOConfirmButtonClicked(self):
-        text = self.add_todo_panel.text_edit.toPlainText()
-        self.add_todo_panel.text_edit.setText("")
-        self.header_panel.add_todo_button.setChecked(False)
-
-        while text[-1:] == "\n":
-            text = text[:-1]
-
-        if text == "":
+    def edit_task(self, task_id):
+        task = self.store.get(task_id)
+        if task.trashed:
+            self.show_error("请先从回收站恢复事项。")
             return
+        if not self.confirm_unsaved(): return
+        self.pages.setCurrentWidget(self.editor_page)
+        self.editor.open(task)
 
-        self.todo_list_panel.addTODO(text)
+    def editor_saved(self):
+        self.show_list()
+        self.reminders.check()
 
-    def _onAddTODOCancelButtonClicked(self):
-        self.add_todo_panel.text_edit.setText("")
-        self.header_panel.add_todo_button.setChecked(False)
+    def cancel_editor(self):
+        if self.editor.dirty() and QMessageBox.question(self, "取消修改", "放弃尚未保存的修改？") != QMessageBox.Yes: return
+        self.editor.baseline = None
+        self.show_list()
 
-    def moveTo(self, x, y):
-        self.move_animation.setTarget([x, y])
-        self.move_animation.try_to_start()
+    def open_settings(self):
+        self.pages.setCurrentWidget(self.list_page if self.pages.currentWidget() is self.settings_page else self.settings_page)
 
-    def moveEvent(self, a0):
-        super().moveEvent(a0)
-        x, y = a0.pos().x(), a0.pos().y()
-        self.move_animation.setCurrent([x, y])
+    def toggle_completed(self, task_id):
+        task = self.store.get(task_id)
+        self.perform(lambda: self.store.reopen(task_id) if task.status == "completed" else self.store.complete(task_id))
 
-    def _onMoveAnimationTicked(self, pos):
-        self.move(int(pos[0]), int(pos[1]))
-        if SiGlobal.todo_list.position_locked is False:
-            self.fixed_position = self.pos()
+    def list_context_menu(self, point):
+        index = self.list_view.indexAt(point)
+        if index.isValid(): self.task_menu(index.data(Qt.UserRole).id, self.list_view.viewport().mapToGlobal(point))
 
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        if event.button() == Qt.LeftButton:
-            self.anchor = event.pos()
+    def task_menu(self, task_id, point):
+        task, menu = self.store.get(task_id), QMenu(self)
+        if task.trashed:
+            menu.addAction("从回收站恢复", lambda: self.perform(lambda: self.store.restore(task_id)))
+            menu.addAction("永久删除…", lambda: self.permanent_delete([task_id]))
+        else:
+            menu.addAction("修改事项", lambda: self.edit_task(task_id))
+            menu.addAction("恢复为待办" if task.status == "completed" else "标记完成", lambda: self.toggle_completed(task_id))
+            menu.addAction("取消事项置顶" if task.pinned else "事项置顶", lambda: self.perform(lambda: self.store.update(task_id, pinned=not task.pinned)))
+            menu.addSeparator()
+            menu.addAction("移入回收站", lambda: self.perform(lambda: self.store.trash(task_id)))
+        menu.exec_(point)
+
+    def edit_selected(self):
+        task = self.list_view.currentIndex().data(Qt.UserRole)
+        if task: self.edit_task(task.id)
+
+    def delete_selected(self):
+        task = self.list_view.currentIndex().data(Qt.UserRole)
+        if task:
+            if task.trashed: self.permanent_delete([task.id])
+            else: self.perform(lambda: self.store.trash(task.id))
+
+    def permanent_delete(self, ids):
+        if QMessageBox.question(self, "永久删除", f"永久删除 {len(ids)} 项？事项无法恢复，已经发生的周报记录会保留。") != QMessageBox.Yes: return
+        self.perform(lambda: self.store.delete_many(ids))
+
+    def complete_all(self):
+        ids = [task.id for task in self.model.tasks]
+        if self.status.currentData() == "trash": self.permanent_delete(ids)
+        elif QMessageBox.question(self, "全部完成", f"将当前显示的 {len(ids)} 项标记完成？") == QMessageBox.Yes:
+            self.perform(lambda: self.store.complete_many(ids))
+
+    def add_category(self):
+        name, accepted = QInputDialog.getText(self, "新建分类", "分类名称")
+        if accepted:
+            try: category_id = self.store.add_category(name)
+            except Exception as exc:
+                self.show_error(str(exc))
+                return
+            self.reload_categories()
+            self.editor.category.setCurrentIndex(self.editor.category.findData(category_id))
+            self.refresh()
+
+    def manage_categories(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("管理分类")
+        dialog.setMinimumWidth(320)
+        layout, combo = QVBoxLayout(dialog), QComboBox()
+        for key, name in self.store.categories(): combo.addItem(name, key)
+        layout.addWidget(combo)
+        row = QHBoxLayout()
+        add, rename, delete = QPushButton("新建"), QPushButton("重命名"), QPushButton("删除")
+        for button in (add, rename, delete): row.addWidget(button)
+        layout.addLayout(row)
+        def reload():
+            current = combo.currentData()
+            combo.clear()
+            for key, name in self.store.categories(): combo.addItem(name, key)
+            combo.setCurrentIndex(max(0, combo.findData(current)))
+            self.reload_categories()
+            self.refresh()
+        def create():
+            self.add_category()
+            reload()
+        def change_name():
+            if combo.currentData() == UNCATEGORIZED: return
+            name, accepted = QInputDialog.getText(dialog, "重命名分类", "分类名称", text=combo.currentText())
+            if accepted and self.perform(lambda: self.store.rename_category(combo.currentData(), name)): reload()
+        def remove():
+            if combo.currentData() == UNCATEGORIZED: return
+            if QMessageBox.question(dialog, "删除分类", "此分类中的事项将移到“未分类”，继续？") == QMessageBox.Yes:
+                if self.perform(lambda: self.store.delete_category(combo.currentData())): reload()
+        add.clicked.connect(create)
+        rename.clicked.connect(change_name)
+        delete.clicked.connect(remove)
+        def enable():
+            rename.setEnabled(combo.currentData() != UNCATEGORIZED)
+            delete.setEnabled(combo.currentData() != UNCATEGORIZED)
+        combo.currentIndexChanged.connect(enable)
+        enable()
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec_()
+
+    def import_legacy(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "导入旧版事项", "", "旧版事项 (todos.ini);;INI (*.ini)")
+        if filename:
+            try: amount = self.store.import_legacy(filename)
+            except Exception as exc:
+                self.show_error(f"导入失败：{exc}")
+                return
+            self.refresh()
+            QMessageBox.information(self, "导入完成", f"已导入 {amount} 项，原文件保持不变。")
+
+    def open_weekly(self):
+        self.restore_window()
+        WeeklyReportDialog(self.store, self).exec_()
+
+    def reminders_due(self, tasks):
+        self.refresh()
+        if self.tray_available and QSystemTrayIcon.supportsMessages():
+            text = tasks[0].text if len(tasks) == 1 else f"有 {len(tasks)} 项提醒已到时间：\n" + "\n".join(t.text.splitlines()[0] for t in tasks[:3])
+            self.tray.showMessage("My-TODOs-X · 待办提醒", text[:240], QSystemTrayIcon.Information)
+        else: self.show_error(f"有 {len(tasks)} 项提醒已到时间：\n" + "\n".join(t.text for t in tasks[:5]))
+
+    def restore_window(self):
+        self.restore_geometry()
+        self.setWindowOpacity(self.settings.get("window_opacity"))
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def hide_to_tray(self):
+        if self.tray_available:
+            self.save_geometry()
+            self.settings.flush()
+            self.hide()
+
+    def close_choice(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("关闭 My-TODOs-X")
+        layout = QVBoxLayout(dialog)
+        label = QLabel("后台常驻可以继续发送事项提醒。请选择关闭方式：")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        remember = QCheckBox("记住选择，以后可在设置中修改")
+        remember.setChecked(True)
+        layout.addWidget(remember)
+        row = QHBoxLayout()
+        tray, quit_button, cancel = QPushButton("后台常驻"), QPushButton("退出程序"), QPushButton("取消")
+        tray.setEnabled(self.tray_available)
+        choice = [None]
+        def choose(value):
+            choice[0] = value
+            dialog.accept()
+        tray.clicked.connect(lambda: choose("tray"))
+        quit_button.clicked.connect(lambda: choose("quit"))
+        cancel.clicked.connect(dialog.reject)
+        for button in (tray, quit_button, cancel): row.addWidget(button)
+        layout.addLayout(row)
+        if dialog.exec_() != QDialog.Accepted: return None
+        if remember.isChecked() and not self.settings.set("close_behavior", choice[0]): return None
+        return choice[0]
+
+    def request_exit(self):
+        if not self.confirm_unsaved(): return
+        self._exit_requested = True
+        self.close()
+
+    def stop_services(self):
+        self.reminders.stop()
+        self.search_timer.stop()
+        self.resize_idle.stop()
+        self.settings.timer.stop()
+        self.tray.hide()
+        QApplication.instance().removeEventFilter(self)
+        try: QApplication.instance().screenRemoved.disconnect(self.restore_geometry)
+        except TypeError: pass
+
+    def closeEvent(self, event):
+        if self._closed:
             event.accept()
-
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        if not (event.buttons() & Qt.LeftButton):
             return
-
-        new_pos = event.pos() - self.anchor + self.frameGeometry().topLeft()
-        x, y = new_pos.x(), new_pos.y()
-
-        self.moveTo(x, y)
-
-    def mouseReleaseEvent(self, a0):
-        if SiGlobal.todo_list.position_locked is True:
-            self.moveTo(self.fixed_position.x(), self.fixed_position.y())
-
-    def closeEvent(self, a0):
-        super().closeEvent(a0)
-
-        # 获取当前待办，并写入 todos.ini
-        todos = [widget.text_label.text() for widget in self.todo_list_panel.body().widgets_top]
-        SiGlobal.todo_list.todos_parser.todos = todos
-        SiGlobal.todo_list.todos_parser.write()
-
-        # 写入设置到 options.ini
-        SiGlobal.todo_list.settings_parser.modify("FIXED_POSITION_X", self.fixed_position.x())
-        SiGlobal.todo_list.settings_parser.modify("FIXED_POSITION_Y", self.fixed_position.y())
-        SiGlobal.todo_list.settings_parser.write()
-
-        SiGlobal.siui.windows["TOOL_TIP"].close()
-        QCoreApplication.quit()
+        behavior = "quit" if self._exit_requested else self.settings.get("close_behavior")
+        if behavior == "ask": behavior = self.close_choice()
+        if behavior is None:
+            event.ignore()
+            return
+        if behavior == "tray" and self.tray_available:
+            self.hide_to_tray()
+            event.ignore()
+            return
+        if not self._exit_requested and not self.confirm_unsaved():
+            event.ignore()
+            return
+        self.save_geometry()
+        if not self.settings.flush():
+            self._exit_requested = False
+            event.ignore()
+            return
+        self.stop_services()
+        self._closed = True
+        event.accept()
+        if self.exit_app: QApplication.instance().quit()
