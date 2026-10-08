@@ -38,7 +38,6 @@ class ToolTipWindow(ABCAnimatedWidget):
         self.tracker_timer = QTimer()
         self.tracker_timer.setInterval(int(1000/60))
         self.tracker_timer.timeout.connect(self._refresh_position)
-        self.tracker_timer.start()
 
         # 背景颜色，可以用于呈现不同类型的信息
         self.bg_label = siui.widgets.SiLabel(self)
@@ -64,15 +63,21 @@ class ToolTipWindow(ABCAnimatedWidget):
 
         # 通过输入空文本初始化大小
         self.setText("", flash=False)
+        self.hide()
 
     def reloadStyleSheet(self):
         self.bg_label.setColor(SiGlobal.siui.colors["TOOLTIP_BG"])
         self.text_label.setStyleSheet("color: {}".format(SiGlobal.siui.colors["TEXT_A"]))
 
     def show_(self):
+        if not self.text_label.text():
+            return
+        self.show()
+        self.tracker_timer.start()
         self.setOpacityTo(1.0)
 
     def hide_(self):
+        self.tracker_timer.stop()
         self.setOpacityTo(0)
 
     def show_animation(self):       # TODO: 移除这个兼容旧接口的方法
@@ -83,6 +88,8 @@ class ToolTipWindow(ABCAnimatedWidget):
 
     def _completely_hid_signal_handler(self, target):
         if target == 0:
+            self.hide()
+            self.tracker_timer.stop()
             self.completely_hid = True
             self.resize(2 * self.margin, 36 + 2 * self.margin)  # 变单行内容的高度，宽度不足以显示任何内容
             self.text_label.setText("")   # 清空文本内容
@@ -111,6 +118,8 @@ class ToolTipWindow(ABCAnimatedWidget):
         """
         text_changed = self.text_label.text() != text
         self.text_label.setText(str(text))
+        if text and self.now_inside_of is not None:
+            self.show_()
         self._refresh_size()
         if flash and text_changed:
             self.flash()
