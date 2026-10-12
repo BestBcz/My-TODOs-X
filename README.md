@@ -2,11 +2,14 @@
 
 基于 [ChinaIceF / 霏泠 Ice 的 My-TODOs](https://github.com/ChinaIceF/My-TODOs) 增强的本地桌面待办工具。保留简洁卡片、圆角及深浅主题，优先支持 Windows。
 
+界面沿用最初的 SiliconUI 视觉：20px 卡片标题、14px 正文、32px 内边距、原版图标和渐变开关。清单默认保持简洁，搜索和分类排序通过标题旁的图标展开；新建事项的分类、优先级和时间设置放在“更多选项”中。
+
 ## 使用 Windows 程序
 
 解压 `My-TODOs-X-Windows-x64.zip`，运行文件夹里的 `My-TODOs-X.exe`。请保留同目录的 `_internal` 文件夹。无需安装 Python。ZIP 同时包含 source 完整源码和第三方许可证。
 
 - 鼠标拖动窗口四边或四角调整大小；拖动标题区域移动。内容会自动换行，长清单可以滚动。
+- 点击标题栏的待办数量可收起或展开清单，展开后恢复之前的窗口高度。
 - 标题栏 `+` 新建事项，双击事项修改，右键或悬停后的更多按钮操作事项。
 - 勾选后进入“已完成”，取消勾选可恢复；删除进入回收站，永久删除需确认。
 - 分类、高中低优先级、事项置顶、搜索及四种排序均可使用。完整未完成清单采用手动排序时可拖动事项调整顺序，置顶事项保持在最前。
@@ -40,7 +43,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe build_windows.py
 ```
 
-构建输出位于 `dist\My-TODOs-X\` 及 `dist\My-TODOs-X-Windows-x64.zip`。自动化测试使用临时数据库和隔离的 Qt 环境，不修改真实待办或 Windows 自启设置。`scripts/render_qa.py` 可生成隔离界面截图及 500 项清单缩放性能数据。
+构建输出位于 `dist\ui-refresh\My-TODOs-X\` 及 `dist\My-TODOs-X-Windows-x64.zip`。自动化测试使用临时数据库和隔离的 Qt 环境，不修改真实待办或 Windows 自启设置。`scripts/render_qa.py` 可生成隔离界面截图及 500 项清单缩放性能数据。
 
 ## 许可与致谢
 

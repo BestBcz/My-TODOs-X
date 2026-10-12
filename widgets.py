@@ -4,10 +4,12 @@ from pathlib import Path
 from functools import lru_cache
 
 from PyQt5.QtCore import QAbstractListModel, QByteArray, QDate, QDateTime, QEvent, QMimeData, QModelIndex, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QDrag, QFont, QIcon, QKeySequence, QPainter, QPixmap, QTextDocument
+from PyQt5.QtGui import QColor, QDrag, QFont, QIcon, QKeySequence, QPainter, QPixmap, QTextCharFormat, QTextCursor, QTextDocument
 from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QDateEdit, QDateTimeEdit, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel, QLayout, QListView, QMessageBox, QPushButton, QShortcut, QSizePolicy, QStyle, QStyledItemDelegate, QTextEdit, QToolButton, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QDateEdit, QDateTimeEdit, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel, QLayout, QListView, QMessageBox, QPushButton, QShortcut, QSizePolicy, QStyle, QStyledItemDelegate, QTextEdit, QToolButton, QVBoxLayout, QWidget
 from task_store import UNCATEGORIZED, stamp
+from appearance import IconButton, MessageBox as QMessageBox, SiliconDialog, palette, text_font
+from icons import IconDictionary
 
 SVG_PATHS = {
     "add": "M12 5v14M5 12h14", "close": "M6 6l12 12M18 6L6 18",
@@ -20,8 +22,18 @@ SVG_PATHS = {
 
 @lru_cache(maxsize=64)
 def icon(name, color="#0F85D3"):
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="{SVG_PATHS[name]}" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-    result, renderer = QIcon(), QSvgRenderer(QByteArray(svg.encode()))
+    names = {"add": "fi-rr-apps-add", "close": "fi-rr-cross-small", "settings": "fi-rr-menu-burger",
+             "check": "fi-rr-check", "complete": "fi-rr-list-check", "search": "fi-rr-search",
+             "filter": "fi-rr-filter", "back": "fi-rr-angle-small-left", "weekly": "fi-rr-calendar",
+             "pin": "fi-rr-thumbtack", "more": "fi-rr-menu-dots", "down": "fi-rr-angle-small-down"}
+    if name == "calendar":
+        path = "M0,8v-1C0,4.243,2.243,2,5,2h1V1c0-.552,.447-1,1-1s1,.448,1,1v1h8V1c0-.552,.447-1,1-1s1,.448,1,1v1h1c2.757,0,5,2.243,5,5v1H0Zm24,2v9c0,2.757-2.243,5-5,5H5c-2.757,0-5-2.243-5-5V10H24Zm-6.168,3.152c-.384-.397-1.016-.409-1.414-.026l-4.754,4.582c-.376,.376-1.007,.404-1.439-.026l-2.278-2.117c-.403-.375-1.035-.354-1.413,.052-.376,.404-.353,1.037,.052,1.413l2.252,2.092c.566,.567,1.32,.879,2.121,.879s1.556-.312,2.108-.866l4.74-4.568c.397-.383,.409-1.017,.025-1.414Z"
+        svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="{path}" fill="{color}"/></svg>'.encode()
+    else:
+        svg = icon_library(color).get(names.get(name, ""))
+        if svg is None:
+            svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="{SVG_PATHS.get(name, SVG_PATHS["more"])}" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'.encode()
+    result, renderer = QIcon(), QSvgRenderer(QByteArray(svg))
     for size in (16, 24, 32, 48, 64, 128, 256):
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.transparent)
@@ -31,15 +43,13 @@ def icon(name, color="#0F85D3"):
         result.addPixmap(pixmap)
     return result
 
+@lru_cache(maxsize=8)
+def icon_library(color):
+    # Use the original application's loader in memory; never extract its assets.
+    return IconDictionary(color=color).icons
+
 def tool_button(name, hint, callback):
-    button = QToolButton()
-    button.setObjectName("iconButton")
-    button.setIcon(icon(name))
-    button.setToolTip(hint)
-    button.setAccessibleName(hint)
-    button.setFixedSize(32, 32)
-    button.clicked.connect(callback)
-    return button
+    return IconButton(name, hint, callback)
 
 class FlowLayout(QLayout):
     def __init__(self, parent=None):
@@ -78,12 +88,34 @@ class Card(QFrame):
         super().__init__(parent)
         self.setObjectName("card")
         self.layout_v = QVBoxLayout(self)
-        self.layout_v.setContentsMargins(16, 16, 16, 16)
-        self.layout_v.setSpacing(12)
+        self.layout_v.setContentsMargins(32, 20, 32, 20)
+        self.layout_v.setSpacing(16)
+        self.header_layout = QHBoxLayout()
+        self.header_layout.setSpacing(8)
+        self.title_label = None
         if title:
             label = QLabel(title)
             label.setObjectName("cardTitle")
-            self.layout_v.addWidget(label)
+            label.setFont(text_font(20, True))
+            self.title_label = label
+            self.header_layout.addWidget(label)
+            self.header_layout.addStretch()
+            self.layout_v.addLayout(self.header_layout)
+
+    def paintEvent(self, event):
+        c = palette(self)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(c["accent"] if self.title_label else c["surface"]))
+        p.drawRoundedRect(QRectF(self.rect()), 8, 8)
+        p.setBrush(QColor(c["surface"]))
+        p.setPen(QColor(c["border"]))
+        p.drawRoundedRect(QRectF(self.rect().adjusted(0,0,-1,-3 if self.title_label else -1)), 8, 8)
+        if self.title_label:
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(c["accent"]))
+            p.drawRoundedRect(QRectF(0,24,4,18), 2, 2)
 
 class TaskModel(QAbstractListModel):
     reordered = pyqtSignal(object)
@@ -163,62 +195,66 @@ class TaskDelegate(QStyledItemDelegate):
         key = (task.id, task.text, width, task.status)
         if key not in self.cache:
             doc = QTextDocument()
-            font = QFont(self.window.font())
+            font = text_font()
             font.setStrikeOut(task.status == "completed")
             doc.setDefaultFont(font)
             doc.setDocumentMargin(0)
             doc.setPlainText(task.text)
-            doc.setTextWidth(max(50, width - 76))
+            doc.setTextWidth(max(50, width - 82))
             if len(self.cache) > max(100, len(self.window.model.tasks) * 2): self.cache.clear()
             self.cache[key] = doc
         return self.cache[key]
     def sizeHint(self, option, index):
         task = index.data(Qt.UserRole)
         width = self.window.list_view.viewport().width()
-        return QSize(width, max(60, int(self.document(task, width).size().height()) + 42))
+        return QSize(width, int(self.document(task, width).size().height()) + (38 if self.metadata(task) else 24))
+
+    def metadata(self, task):
+        values = []
+        if task.pinned: values.append("置顶")
+        if task.priority != 1: values.append("高优先级" if task.priority == 2 else "低优先级")
+        if task.category_id != UNCATEGORIZED: values.append(self.window.category_names.get(task.category_id, "未分类"))
+        if task.due_at:
+            dt = datetime.fromisoformat(task.due_at).astimezone()
+            values.append(("逾期 " if task.status == "active" and dt < datetime.now().astimezone() else "") + dt.strftime("%m-%d %H:%M"))
+        if task.remind_at: values.append("已提醒" if task.reminder_sent_at else "有提醒")
+        return values
     def paint(self, painter, option, index):
         task, rect = index.data(Qt.UserRole), option.rect
-        dark = self.window.settings.get("dark_mode")
-        text, muted = QColor("#e1d9e8" if dark else "#353343"), QColor("#a19aaa" if dark else "#777384")
+        c = palette(self.window)
+        text, muted = QColor(c["text"]), QColor(c["muted"])
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
         hovered = bool(option.state & (QStyle.State_Selected | QStyle.State_MouseOver))
         if hovered:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor("#34303b" if dark else "#e5edf6"))
+            hover = QColor(c["icon"])
+            hover.setAlphaF(.06)
+            painter.setBrush(hover)
             painter.drawRoundedRect(QRectF(rect.adjusted(0, 2, 0, -2)), 6, 6)
-        check = QRectF(rect.left()+6, rect.top()+13, 16, 16)
-        painter.setPen(QColor("#0F85D3") if task.status == "completed" else muted)
-        painter.setBrush(QColor("#0F85D3") if task.status == "completed" else QColor(0, 0, 0, 0))
+        check = QRectF(rect.left()+1, rect.top()+12, 20, 20)
+        painter.setPen(QColor(c["icon"]) if task.status == "completed" else muted)
+        painter.setBrush(QColor(c["icon"]) if task.status == "completed" else QColor(0, 0, 0, 0))
         painter.drawRoundedRect(check, 4, 4)
         if task.status == "completed":
-            painter.setPen(QColor("white"))
+            painter.setPen(QColor(c["surface"]))
             painter.drawLine(QPoint(int(check.x()+3), int(check.y()+8)), QPoint(int(check.x()+7), int(check.y()+12)))
             painter.drawLine(QPoint(int(check.x()+7), int(check.y()+12)), QPoint(int(check.x()+13), int(check.y()+4)))
         doc = self.document(task, rect.width())
-        painter.translate(rect.left()+32, rect.top()+10)
+        painter.translate(rect.left()+50, rect.top()+10)
         context = doc.documentLayout().PaintContext()
         context.palette.setColor(context.palette.Text, muted if task.status == "completed" else text)
         doc.documentLayout().draw(painter, context)
-        painter.translate(-rect.left()-32, -rect.top()-10)
-        metadata = []
-        if task.pinned: metadata.append("置顶")
-        if task.priority != 1: metadata.append("高优先级" if task.priority == 2 else "低优先级")
-        if task.category_id != UNCATEGORIZED: metadata.append(self.window.category_names.get(task.category_id, "未分类"))
-        if task.due_at:
-            dt = datetime.fromisoformat(task.due_at).astimezone()
-            metadata.append(("逾期 " if task.status == "active" and dt < datetime.now().astimezone() else "") + dt.strftime("%m-%d %H:%M"))
-        if task.remind_at: metadata.append("已提醒" if task.reminder_sent_at else "有提醒")
+        painter.translate(-rect.left()-50, -rect.top()-10)
+        metadata = self.metadata(task)
         painter.setPen(muted)
-        small = QFont(self.window.font())
-        small.setPointSizeF(max(8, small.pointSizeF()-1))
+        small = text_font(12)
         painter.setFont(small)
-        meta_rect = rect.adjusted(32, rect.height()-27, -36, -5)
-        painter.drawText(meta_rect, Qt.AlignLeft | Qt.AlignVCenter,
-                         painter.fontMetrics().elidedText(" · ".join(metadata), Qt.ElideRight, meta_rect.width()))
+        meta_rect = rect.adjusted(50, rect.height()-27, -36, -5)
+        if metadata:
+            painter.drawText(meta_rect, Qt.AlignLeft | Qt.AlignVCenter,
+                             painter.fontMetrics().elidedText(" · ".join(metadata), Qt.ElideRight, meta_rect.width()))
         if hovered: icon("more", muted.name()).paint(painter, QRect(rect.right()-30, rect.top()+10, 24, 24))
-        painter.setPen(QColor("#3b373f" if dark else "#e4e1e8"))
-        painter.drawLine(rect.bottomLeft()+QPoint(32, 0), rect.bottomRight()-QPoint(8, 0))
         painter.restore()
     def editorEvent(self, event, model, option, index):
         task = index.data(Qt.UserRole)
@@ -236,12 +272,29 @@ class TaskEditor(Card):
     def __init__(self, window):
         super().__init__("添加待办")
         self.host, self.task, self.baseline = window, None, None
-        self.title = self.layout_v.itemAt(0).widget()
+        self.title = self.title_label
+        self.header_layout.addWidget(tool_button("close", "取消修改", self.cancelled.emit))
+        self.header_layout.addWidget(tool_button("check", "保存事项 · Ctrl+Enter", self.save))
+        instruction = QLabel("请输入待办内容")
+        instruction.setObjectName("settingTitle")
+        self.layout_v.addWidget(instruction)
         self.text = QTextEdit()
         self.text.setPlaceholderText("请输入待办内容，支持多行…")
-        self.text.setMinimumHeight(100)
+        self.text.setFixedHeight(70)
         self.text.setAcceptRichText(False)
         self.layout_v.addWidget(self.text)
+        self.options_button = QPushButton("更多选项")
+        self.options_button.setObjectName("disclosure")
+        self.options_button.setCheckable(True)
+        self.options_button.setCursor(Qt.PointingHandCursor)
+        self.layout_v.addWidget(self.options_button, 0, Qt.AlignLeft)
+        self.metadata_panel = QWidget()
+        self.metadata_layout = QVBoxLayout(self.metadata_panel)
+        self.metadata_layout.setContentsMargins(0,0,0,0)
+        self.metadata_layout.setSpacing(16)
+        self.layout_v.addWidget(self.metadata_panel)
+        self.metadata_panel.hide()
+        self.options_button.toggled.connect(self.metadata_panel.setVisible)
         row = QHBoxLayout()
         self.category = QComboBox()
         self.category.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
@@ -250,7 +303,7 @@ class TaskEditor(Card):
         row.addWidget(QLabel("分类"))
         row.addWidget(self.category, 1)
         row.addWidget(tool_button("add", "新建分类", window.add_category))
-        self.layout_v.addLayout(row)
+        self.metadata_layout.addLayout(row)
         self.priority, self.pinned = QComboBox(), QCheckBox("事项置顶")
         for label, value in (("高", 2), ("中", 1), ("低", 0)): self.priority.addItem(label, value)
         row = QHBoxLayout()
@@ -258,22 +311,13 @@ class TaskEditor(Card):
         row.addWidget(self.priority)
         row.addStretch()
         row.addWidget(self.pinned)
-        self.layout_v.addLayout(row)
+        self.metadata_layout.addLayout(row)
         self.due_enabled, self.due = self.date_field("截止时间")
         self.remind_enabled, self.remind = self.date_field("独立提醒")
         note = QLabel("后台运行时提醒；退出期间错过的提醒会在下次启动时补发。")
         note.setObjectName("muted")
         note.setWordWrap(True)
-        self.layout_v.addWidget(note)
-        row = QHBoxLayout()
-        cancel, save = QPushButton("取消"), QPushButton("保存")
-        cancel.clicked.connect(self.cancelled)
-        save.setObjectName("primary")
-        save.clicked.connect(self.save)
-        row.addStretch()
-        row.addWidget(cancel)
-        row.addWidget(save)
-        self.layout_v.addLayout(row)
+        self.metadata_layout.addWidget(note)
         shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
         shortcut.setContext(Qt.WidgetWithChildrenShortcut)
         shortcut.activated.connect(self.save)
@@ -285,7 +329,7 @@ class TaskEditor(Card):
         enabled.toggled.connect(edit.setEnabled)
         row.addWidget(enabled)
         row.addWidget(edit, 1)
-        self.layout_v.addLayout(row)
+        self.metadata_layout.addLayout(row)
         return enabled, edit
     def reload_categories(self):
         current = self.category.currentData()
@@ -300,6 +344,9 @@ class TaskEditor(Card):
         self.category.setCurrentIndex(max(0, self.category.findData(task.category_id if task else UNCATEGORIZED)))
         self.priority.setCurrentIndex(self.priority.findData(task.priority if task else 1))
         self.pinned.setChecked(task.pinned if task else False)
+        expanded = bool(task and (task.category_id != UNCATEGORIZED or task.priority != 1 or task.pinned or task.due_at or task.remind_at))
+        self.options_button.setChecked(expanded)
+        self.metadata_panel.setVisible(expanded)
         for enabled, edit, value in ((self.due_enabled, self.due, task.due_at if task else None),
                                      (self.remind_enabled, self.remind, task.remind_at if task else None)):
             edit.setDateTime(QDateTime(datetime.fromisoformat(value).astimezone().replace(tzinfo=None)) if value else QDateTime.currentDateTime().addSecs(3600))
@@ -336,25 +383,32 @@ class TaskEditor(Card):
         self.saved.emit()
         return True
 
-class WeeklyReportDialog(QDialog):
+class WeeklyReportDialog(SiliconDialog):
     def __init__(self, store, parent=None):
-        super().__init__(parent)
+        super().__init__("每周总结", parent)
         self.store = store
         self.setWindowTitle("每周总结 · My-TODOs-X")
         self.resize(620, 560)
         self.setMinimumSize(380, 320)
-        layout, row = QVBoxLayout(self), QHBoxLayout()
-        row.addWidget(QLabel("选择周内任意一天"))
+        layout, row = self.body, QHBoxLayout()
+        row.addWidget(QLabel("查看周"))
         self.date = QDateEdit(QDate.currentDate())
         self.date.setCalendarPopup(True)
         self.date.setDisplayFormat("yyyy-MM-dd")
+        self.date.setMinimumWidth(140)
         self.date.setMaximumDate(QDate.currentDate())
         self.date.dateChanged.connect(self.refresh)
         row.addWidget(self.date)
         row.addStretch()
         layout.addLayout(row)
+        self.summary_label = QLabel()
+        self.summary_label.setObjectName("settingDescription")
+        self.summary_label.setWordWrap(True)
+        layout.addWidget(self.summary_label)
         self.preview = QTextEdit()
+        self.preview.setObjectName("reportPreview")
         self.preview.setReadOnly(True)
+        self.preview.document().setDefaultFont(text_font())
         layout.addWidget(self.preview, 1)
         row = QHBoxLayout()
         copy, export, close = QPushButton("复制周报"), QPushButton("导出 Markdown"), QPushButton("关闭")
@@ -369,8 +423,18 @@ class WeeklyReportDialog(QDialog):
         self.refresh()
     def refresh(self):
         try:
-            self.markdown = self.store.report_markdown(self.store.weekly_report(self.date.date().toPyDate()))
-            self.preview.setMarkdown(self.markdown)
+            report = self.store.weekly_report(self.date.date().toPyDate())
+            self.markdown = self.store.report_markdown(report)
+            self.summary_label.setText(f"{report['monday']} 至 {report['sunday']}\n新增 {len(report['created'])} 项 · 完成 {len(report['completed'])} 项 · 待办 {len(report['pending'])} 项 · 逾期 {len(report['overdue'])} 项")
+            self.preview.setMarkdown("\n".join(self.markdown.splitlines()[4:]))
+            block = self.preview.document().begin()
+            while block.isValid():
+                cursor = QTextCursor(block)
+                cursor.select(QTextCursor.BlockUnderCursor)
+                char = QTextCharFormat()
+                char.setFont(text_font(14, block.blockFormat().headingLevel() > 0))
+                cursor.mergeCharFormat(char)
+                block = block.next()
         except Exception as exc: QMessageBox.warning(self, "无法生成周报", str(exc))
     def export(self):
         selected = self.date.date().toPyDate()

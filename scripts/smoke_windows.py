@@ -39,7 +39,7 @@ def run(executable, profile, cwd):
         first.wait(timeout=10)
 
 def main():
-    original = ROOT / "dist" / "My-TODOs-X"
+    original = ROOT / "dist" / "ui-refresh" / "My-TODOs-X"
     copied = ROOT / "build" / "中文 路径" / "My TODOs X"
     assert copied.resolve().is_relative_to((ROOT / "build").resolve())
     shutil.copytree(original, copied, dirs_exist_ok=True)
