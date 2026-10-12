@@ -3,12 +3,13 @@ import sys
 from pathlib import Path
 from PyQt5.QtCore import QEvent, QPoint, QRect, QRectF, Qt, QTimer
 from PyQt5.QtGui import QColor, QKeySequence, QPainter
-from PyQt5.QtWidgets import QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListView, QMainWindow, QMenu, QMessageBox, QPushButton, QScrollArea, QShortcut, QSlider, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLayout, QLineEdit, QListView, QMainWindow, QMenu, QMessageBox, QPushButton, QScrollArea, QShortcut, QSizePolicy, QSlider, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget
 from platform_services import autostart_enabled, set_autostart
 from reminders import ReminderService
 from settings_service import SettingsService
 from task_store import UNCATEGORIZED
 from widgets import Card, FlowLayout, TaskDelegate, TaskEditor, TaskListView, TaskModel, WeeklyReportDialog, icon, tool_button
+from appearance import DARK, LIGHT, MessageBox as QMessageBox, SiliconDialog, SiliconSwitch, get_text, palette, stylesheet, text_font
 
 class TODOApplication(QMainWindow):
     def __init__(self, store, settings=None, tray_available=None, exit_app=True):
@@ -18,6 +19,7 @@ class TODOApplication(QMainWindow):
         self._exit_requested = self._ready = self._resize_layout_pending = False
         self._closed = False
         self._drag_origin = self._resize_origin = None
+        self._frame_padding = 48
         self.category_names = {}
         self.tray_available = QSystemTrayIcon.isSystemTrayAvailable() if tray_available is None else tray_available
         self.setWindowTitle("My-TODOs-X")
@@ -25,29 +27,45 @@ class TODOApplication(QMainWindow):
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setMinimumSize(380, 320)
+        self.setFont(text_font())
         self.setMouseTracking(True)
         self.settings.error.connect(self.show_error)
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(12, 12, 12, 12)
+        self.main_layout = layout
+        layout.setSizeConstraint(QLayout.SetNoConstraint)
+        layout.setContentsMargins(48, 48, 48, 48)
         layout.setSpacing(12)
         self.header = Card()
-        self.header.layout_v.setContentsMargins(12, 8, 12, 8)
+        self.header.layout_v.setContentsMargins(16, 8, 16, 8)
         row = QHBoxLayout()
         row.setSpacing(6)
-        self.logo, self.count_label = QLabel(), QLabel("没有待办")
-        self.logo.setPixmap(icon("calendar").pixmap(24, 24))
+        self.logo, self.count_label = QLabel(), QPushButton("没有待办")
+        self.logo.setFixedSize(24, 32)
+        self.logo.setAlignment(Qt.AlignCenter)
+        self.logo.setPixmap(icon("calendar").pixmap(16, 16))
         self.count_label.setObjectName("headerCount")
+        self.count_label.setCheckable(True)
+        self.count_label.setChecked(True)
+        self.count_label.setCursor(Qt.PointingHandCursor)
+        self.count_label.setToolTip("收起 / 展开清单")
+        self.count_label.clicked.connect(self.toggle_compact)
+        self._compact = False
+        self._expanded_size = None
         row.addWidget(self.logo)
-        row.addWidget(self.count_label, 1)
-        self.new_button = tool_button("add", "添加待办 · Ctrl+N", self.new_task)
+        row.addWidget(self.count_label)
+        row.addStretch()
+        self.new_button = tool_button("add", "添加待办 · Ctrl+N", self.toggle_editor_page)
         self.settings_button = tool_button("settings", "设置", self.open_settings)
+        self.new_button.setCheckable(True)
+        self.settings_button.setCheckable(True)
         self.close_button = tool_button("close", "关闭窗口", self.close)
         for button in (self.new_button, self.settings_button, self.close_button): row.addWidget(button)
         self.header.layout_v.addLayout(row)
         layout.addWidget(self.header)
         self.pages = QStackedWidget()
+        self.pages.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
         layout.addWidget(self.pages, 1)
         self.build_list_page()
         self.editor = TaskEditor(self)
@@ -57,6 +75,7 @@ class TODOApplication(QMainWindow):
         self.pages.addWidget(self.editor_page)
         self.build_settings_page()
         self.build_tray()
+        self.pages.currentChanged.connect(self.sync_page_buttons)
         self.settings.changed.connect(self.setting_changed)
         self.reminders = ReminderService(store, self)
         self.reminders.due.connect(self.reminders_due)
@@ -106,9 +125,15 @@ class TODOApplication(QMainWindow):
         self.list_page = Card("全部待办")
         self.pages.addWidget(self.list_page)
         self.search = QLineEdit()
+        self.search.setObjectName("searchField")
         self.search.setPlaceholderText("搜索事项 · Ctrl+F")
         self.search.setClearButtonEnabled(True)
         self.list_page.layout_v.addWidget(self.search)
+        self.search.hide()
+        self.search_button = tool_button("search", "搜索事项 · Ctrl+F", self.toggle_search)
+        self.search_button.setCheckable(True)
+        self.filter_button = tool_button("filter", "分类与排序", self.toggle_filters)
+        self.filter_button.setCheckable(True)
         controls = FlowLayout()
         self.status, self.category_filter, self.sort = QComboBox(), QComboBox(), QComboBox()
         for text, value in (("未完成", "active"), ("已完成", "completed"), ("回收站", "trash")): self.status.addItem(text, value)
@@ -116,8 +141,17 @@ class TODOApplication(QMainWindow):
         self.category_filter.setMinimumWidth(105)
         self.category_filter.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.category_filter.setMinimumContentsLength(5)
-        for widget in (self.status, self.category_filter, self.sort): controls.addWidget(widget)
-        self.list_page.layout_v.addLayout(controls)
+        for widget in (self.category_filter, self.sort): controls.addWidget(widget)
+        self.status.setProperty("compact", True)
+        self.status.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.status.setMinimumContentsLength(3)
+        self.list_page.header_layout.addWidget(self.status)
+        self.list_page.header_layout.addWidget(self.search_button)
+        self.list_page.header_layout.addWidget(self.filter_button)
+        self.filter_panel = QWidget()
+        self.filter_panel.setLayout(controls)
+        self.list_page.layout_v.addWidget(self.filter_panel)
+        self.filter_panel.hide()
         self.model, self.list_view = TaskModel(self), TaskListView()
         self.list_view.setModel(self.model)
         self.list_view.setMouseTracking(True)
@@ -143,9 +177,13 @@ class TODOApplication(QMainWindow):
         self.empty_label.setWordWrap(True)
         self.list_page.layout_v.addWidget(self.empty_label)
         row = QHBoxLayout()
-        weekly, self.batch_button = QPushButton("每周总结"), QPushButton("全部完成")
+        weekly = QPushButton("  每周总结")
+        weekly.setAccessibleName("每周总结")
+        weekly.setObjectName("quietButton")
+        weekly.setIcon(icon("weekly"))
+        self.weekly_button = weekly
+        self.batch_button = tool_button("complete", "全部完成", self.complete_all)
         weekly.clicked.connect(self.open_weekly)
-        self.batch_button.clicked.connect(self.complete_all)
         row.addWidget(weekly)
         row.addStretch()
         row.addWidget(self.batch_button)
@@ -154,14 +192,37 @@ class TODOApplication(QMainWindow):
     def build_settings_page(self):
         card = Card("设置")
         self.settings_controls = {}
-        for key, label in (("dark_mode", "深色模式"), ("position_locked", "锁定窗口位置"), ("always_on_top", "窗口始终在最前"), ("autostart", "登录 Windows 时自动启动"), ("autostart_hidden", "自启后只在托盘运行")):
-            control = QCheckBox(label)
+        for key, label, description in (
+            ("dark_mode", "深色模式", "在深色主题下提供更柔和的视觉体验"),
+            ("position_locked", "锁定位置", "保持窗口位置，仍可拖动边缘调整大小"),
+            ("always_on_top", "始终在最前", "让待办清单保持在其他窗口前方"),
+            ("autostart", "开机自启", "登录 Windows 后自动打开待办清单"),
+            ("autostart_hidden", "自启后后台常驻", "启动时收起到托盘，提醒继续工作"),
+        ):
+            row = QHBoxLayout()
+            row.setSpacing(16)
+            labels = QVBoxLayout()
+            labels.setSpacing(3)
+            title, note = QLabel(label), QLabel(description)
+            title.setObjectName("settingTitle")
+            note.setObjectName("settingDescription")
+            note.setWordWrap(True)
+            note.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            labels.addWidget(title)
+            labels.addWidget(note)
+            row.addLayout(labels, 1)
+            control = SiliconSwitch()
+            control.setAccessibleName(label)
+            row.addWidget(control, 0, Qt.AlignVCenter)
             control.toggled.connect(lambda value, name=key: self.change_setting(name, value))
             self.settings_controls[key] = control
-            card.layout_v.addWidget(control)
+            card.layout_v.addLayout(row)
+            card.layout_v.addSpacing(8)
         self.settings_controls["autostart"].setEnabled(sys.platform == "win32")
         row = QHBoxLayout()
-        row.addWidget(QLabel("窗口不透明度"))
+        opacity_title = QLabel("窗口不透明度")
+        opacity_title.setObjectName("settingTitle")
+        row.addWidget(opacity_title)
         self.opacity_label = QLabel("100%")
         row.addStretch()
         row.addWidget(self.opacity_label)
@@ -172,7 +233,7 @@ class TODOApplication(QMainWindow):
         self.opacity_slider.valueChanged.connect(lambda value: self.settings.set("window_opacity", value/100, deferred=True))
         self.opacity_slider.sliderReleased.connect(self.settings.flush)
         card.layout_v.addWidget(self.opacity_slider)
-        label = QLabel("数值越低越透明，背景、文字和按钮会一起变淡。")
+        label = QLabel("数值越低越透明，背景、文字和按钮会一起变淡")
         label.setWordWrap(True)
         label.setObjectName("muted")
         card.layout_v.addWidget(label)
@@ -187,10 +248,11 @@ class TODOApplication(QMainWindow):
             button = QPushButton(text)
             button.clicked.connect(callback)
             card.layout_v.addWidget(button)
-        data_label = QLabel(f"数据保存在：\n{self.store.path.parent}")
+        data_label = QLabel("事项与设置自动保存，更新软件后仍会保留")
         data_label.setWordWrap(True)
         data_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         data_label.setObjectName("muted")
+        data_label.setToolTip(str(self.store.path.parent))
         card.layout_v.addWidget(data_label)
         about = QLabel("My-TODOs-X · 基于霏泠 Ice 的 My-TODOs\nGPL v3 · 本地保存，无需账号")
         about.setWordWrap(True)
@@ -270,41 +332,12 @@ class TODOApplication(QMainWindow):
 
     def apply_theme(self):
         dark = self.settings.get("dark_mode")
-        bg, text, border = ("#252229", "#e1d9e8", "#3b373f") if dark else ("#f3f3f3", "#353343", "#d7d3dc")
-        field, hover, muted = ("#302b35", "#3a3440", "#a19aaa") if dark else ("#ffffff", "#e5edf6", "#777384")
-        self.setStyleSheet(f"""
-            QWidget {{ color: {text}; font-family: 'Microsoft YaHei UI', 'Segoe UI'; font-size: 13px; }}
-            QDialog, QMenu {{ background: {bg}; }}
-            QFrame#card {{ background: {bg}; border: 1px solid {border}; border-bottom: 2px solid #0F85D3; border-radius: 9px; }}
-            QLabel {{ background: transparent; border: none; }}
-            QLabel#cardTitle {{ font-weight: 600; font-size: 15px; border-left: 3px solid #0F85D3; padding-left: 8px; }}
-            QLabel#headerCount {{ font-weight: 600; }}
-            QLabel#muted {{ color: {muted}; font-size: 12px; }}
-            QListView, QScrollArea, QStackedWidget {{ background: transparent; border: none; outline: none; }}
-            QScrollArea > QWidget > QWidget {{ background: transparent; }}
-            QLineEdit, QTextEdit, QComboBox, QDateTimeEdit {{ background: {field}; border: 1px solid {border}; border-radius: 5px; padding: 5px; selection-background-color: #0F85D3; }}
-            QComboBox {{ padding-right: 20px; }}
-            QComboBox QAbstractItemView {{ background: {field}; color: {text}; selection-background-color: #0F85D3; }}
-            QPushButton, QToolButton {{ background: transparent; border: 1px solid {border}; border-radius: 5px; padding: 5px 9px; }}
-            QToolButton#iconButton {{ border: none; padding: 4px; }}
-            QPushButton:hover, QToolButton:hover {{ background: {hover}; }}
-            QPushButton#primary {{ background: #0F85D3; border-color: #0F85D3; color: white; }}
-            QPushButton:disabled, QCheckBox:disabled {{ color: {muted}; }}
-            QCheckBox {{ spacing: 8px; padding: 5px 0; }}
-            QCheckBox::indicator {{ width: 16px; height: 16px; border: 1px solid {muted}; border-radius: 4px; background: {field}; }}
-            QCheckBox::indicator:checked {{ background: #0F85D3; border-color: #0F85D3; }}
-            QSlider::groove:horizontal {{ height: 5px; background: {border}; border-radius: 2px; }}
-            QSlider::sub-page:horizontal {{ background: #0F85D3; border-radius: 2px; }}
-            QSlider::handle:horizontal {{ width: 16px; margin: -6px 0; background: #0F85D3; border-radius: 8px; }}
-            QScrollBar:vertical {{ width: 8px; background: transparent; margin: 0; }}
-            QScrollBar::handle:vertical {{ background: {border}; border-radius: 4px; min-height: 25px; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
-            QMenu {{ border: 1px solid {border}; padding: 4px; }}
-            QMenu::item {{ padding: 7px 24px; }}
-            QMenu::item:selected {{ background: {hover}; }}
-            QToolTip {{ background: {bg}; color: {text}; border: 1px solid {border}; padding: 6px; }}
-        """)
+        self.setProperty("darkTheme", dark)
+        self.setStyleSheet(stylesheet(dark))
+        c = DARK if dark else LIGHT
+        self.logo.setPixmap(icon("calendar", c["icon"]).pixmap(16, 16))
+        self.weekly_button.setIcon(icon("weekly", c["icon"]))
+        for widget in self.findChildren(QWidget): widget.update()
         if hasattr(self, "delegate"):
             self.delegate.cache.clear()
             self.list_view.doItemsLayout()
@@ -327,20 +360,38 @@ class TODOApplication(QMainWindow):
 
     def save_geometry(self):
         if self._ready and not self.isMinimized() and not self.isMaximized():
+            size = self._expanded_size if self._compact and self._expanded_size else self.size()
             self.settings.set_many({"window_x": self.x(), "window_y": self.y(),
-                                    "window_width": self.width(), "window_height": self.height()}, deferred=True)
+                                    "window_width": self.width(), "window_height": size.height()}, deferred=True)
+
+    def update_frame_padding(self):
+        padding = max(16, min(48, 16 + (self.width()-380)*32//120))
+        if padding != self._frame_padding:
+            self._frame_padding = padding
+            self.main_layout.setContentsMargins(padding, padding, padding, padding)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
-        for inset in range(2, 12, 2):
-            painter.setBrush(QColor(0, 0, 0, 5))
-            painter.drawRoundedRect(QRectF(self.rect().adjusted(inset, inset, -inset, -inset)), 12, 12)
+        # Keep transparent resize margins hit-testable on Windows layered windows.
+        painter.fillRect(self.rect(), QColor(0,0,0,1))
+        surfaces = [self.header]
+        if self.pages.isVisible():
+            current = self.pages.currentWidget()
+            surfaces.append(current if isinstance(current, Card) else current.widget().findChild(Card))
+        for surface in surfaces:
+            if surface is None: continue
+            origin = surface.mapTo(self, QPoint(0,0))
+            rect = QRectF(origin.x(), origin.y(), surface.width(), surface.height())
+            for spread in range(22, 0, -2):
+                painter.setBrush(QColor(0, 0, 0, 2 if spread > 10 else 3))
+                painter.drawRoundedRect(rect.adjusted(-spread,-spread,spread,spread), 8+spread, 8+spread)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if not self._ready: return
+        self.update_frame_padding()
         self.save_geometry()
         self.resize_idle.start()
         if not self._resize_layout_pending:
@@ -357,10 +408,11 @@ class TODOApplication(QMainWindow):
 
     def edges_at(self, point):
         edges = Qt.Edges()
-        if point.x() < 12: edges |= Qt.LeftEdge
-        elif point.x() >= self.width()-12: edges |= Qt.RightEdge
-        if point.y() < 12: edges |= Qt.TopEdge
-        elif point.y() >= self.height()-12: edges |= Qt.BottomEdge
+        margin = self._frame_padding + 2
+        if point.x() < margin: edges |= Qt.LeftEdge
+        elif point.x() >= self.width()-margin: edges |= Qt.RightEdge
+        if point.y() < margin: edges |= Qt.TopEdge
+        elif point.y() >= self.height()-margin: edges |= Qt.BottomEdge
         return edges
 
     def eventFilter(self, obj, event):
@@ -393,11 +445,12 @@ class TODOApplication(QMainWindow):
                 else: self.unsetCursor()
             elif kind == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 if edges and not self.isMaximized():
-                    if not self.windowHandle() or not self.windowHandle().startSystemResize(edges):
+                    outer_edge = point.x() < 12 or point.x() >= self.width()-12 or point.y() < 12 or point.y() >= self.height()-12
+                    if not outer_edge or not self.windowHandle() or not self.windowHandle().startSystemResize(edges):
                         self._resize_origin = (event.globalPos(), self.geometry(), edges)
                         self.grabMouse()
                     return True
-                if obj in (self.header, self.logo, self.count_label) and not self.settings.get("position_locked"):
+                if obj in (self.header, self.logo) and not self.settings.get("position_locked"):
                     if not self.windowHandle() or not self.windowHandle().startSystemMove():
                         self._drag_origin = (event.globalPos(), self.pos())
                         self.grabMouse()
@@ -446,20 +499,51 @@ class TODOApplication(QMainWindow):
                 if task.id == selected.id: self.list_view.setCurrentIndex(self.model.index(row, 0))
         self.list_view.verticalScrollBar().setValue(position)
         amount = len(self.store.query())
-        self.count_label.setText(f"{amount} 个待办事项" if amount else "没有待办")
+        self.count_label.setText(f"{amount}个待办事项" if amount else "没有待办")
         self.tray.setToolTip(f"My-TODOs-X · {amount} 个待办")
         self.empty_label.setVisible(not tasks)
         self.empty_label.setText("没有匹配的事项" if search or category else {"active": "当前没有待办哦", "completed": "还没有完成记录", "trash": "回收站是空的"}[status])
-        self.batch_button.setText("清空回收站" if status == "trash" else "全部完成")
+        self.batch_button.setToolTip("清空回收站" if status == "trash" else "全部完成")
+        self.batch_button.setAccessibleName(self.batch_button.toolTip())
         self.batch_button.setVisible(status != "completed")
         self.batch_button.setEnabled(bool(tasks))
 
     def show_list(self):
+        self.ensure_expanded()
         self.pages.setCurrentWidget(self.list_page)
         self.refresh()
 
+    def ensure_expanded(self):
+        if self._compact:
+            self.count_label.setChecked(True)
+            self.toggle_compact(True)
+
+    def toggle_compact(self, expanded):
+        if expanded:
+            self._compact = False
+            self.setMinimumHeight(320)
+            self.pages.show()
+            if self._expanded_size: self.resize(self._expanded_size)
+        else:
+            self._expanded_size = self.size()
+            self._compact = True
+            self.pages.hide()
+            self.setMinimumHeight(48+2*self._frame_padding)
+            self.resize(self.width(), 48+2*self._frame_padding)
+        self.update()
+
+    def toggle_search(self, checked):
+        self.search.setVisible(checked)
+        if checked: self.search.setFocus()
+        else: self.search.clear()
+
+    def toggle_filters(self, checked):
+        self.filter_panel.setVisible(checked)
+
     def focus_search(self):
         self.show_list()
+        self.search_button.setChecked(True)
+        self.search.show()
         self.search.setFocus()
 
     def confirm_unsaved(self):
@@ -495,7 +579,17 @@ class TODOApplication(QMainWindow):
         self.show_list()
 
     def open_settings(self):
+        self.ensure_expanded()
         self.pages.setCurrentWidget(self.list_page if self.pages.currentWidget() is self.settings_page else self.settings_page)
+
+    def toggle_editor_page(self):
+        if self.pages.currentWidget() is self.editor_page: self.cancel_editor()
+        else: self.new_task()
+        self.sync_page_buttons()
+
+    def sync_page_buttons(self):
+        self.new_button.setChecked(self.pages.currentWidget() is self.editor_page)
+        self.settings_button.setChecked(self.pages.currentWidget() is self.settings_page)
 
     def toggle_completed(self, task_id):
         task = self.store.get(task_id)
@@ -539,7 +633,7 @@ class TODOApplication(QMainWindow):
             self.perform(lambda: self.store.complete_many(ids))
 
     def add_category(self):
-        name, accepted = QInputDialog.getText(self, "新建分类", "分类名称")
+        name, accepted = get_text(self, "新建分类", "分类名称")
         if accepted:
             try: category_id = self.store.add_category(name)
             except Exception as exc:
@@ -550,10 +644,9 @@ class TODOApplication(QMainWindow):
             self.refresh()
 
     def manage_categories(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("管理分类")
+        dialog = SiliconDialog("管理分类", self)
         dialog.setMinimumWidth(320)
-        layout, combo = QVBoxLayout(dialog), QComboBox()
+        layout, combo = dialog.body, QComboBox()
         for key, name in self.store.categories(): combo.addItem(name, key)
         layout.addWidget(combo)
         row = QHBoxLayout()
@@ -572,7 +665,7 @@ class TODOApplication(QMainWindow):
             reload()
         def change_name():
             if combo.currentData() == UNCATEGORIZED: return
-            name, accepted = QInputDialog.getText(dialog, "重命名分类", "分类名称", text=combo.currentText())
+            name, accepted = get_text(dialog, "重命名分类", "分类名称", text=combo.currentText())
             if accepted and self.perform(lambda: self.store.rename_category(combo.currentData(), name)): reload()
         def remove():
             if combo.currentData() == UNCATEGORIZED: return
@@ -613,6 +706,7 @@ class TODOApplication(QMainWindow):
         else: self.show_error(f"有 {len(tasks)} 项提醒已到时间：\n" + "\n".join(t.text for t in tasks[:5]))
 
     def restore_window(self):
+        self.ensure_expanded()
         self.restore_geometry()
         self.setWindowOpacity(self.settings.get("window_opacity"))
         self.showNormal()
@@ -626,9 +720,8 @@ class TODOApplication(QMainWindow):
             self.hide()
 
     def close_choice(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("关闭 My-TODOs-X")
-        layout = QVBoxLayout(dialog)
+        dialog = SiliconDialog("关闭 My-TODOs-X", self)
+        layout = dialog.body
         label = QLabel("后台常驻可以继续发送事项提醒。请选择关闭方式：")
         label.setWordWrap(True)
         layout.addWidget(label)

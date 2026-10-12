@@ -18,15 +18,18 @@ def main():
     build = ROOT / "build"
     build.mkdir(exist_ok=True)
     ico = build / "app.ico"
+    release_root = ROOT / "dist" / "ui-refresh"
+    assert release_root.resolve().is_relative_to(ROOT.resolve())
     if not icon("calendar").pixmap(256, 256).save(str(ico), "ICO"):
         raise RuntimeError("无法生成应用图标")
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
-                    "--name", "My-TODOs-X", "--icon", str(ico),
+                    "--name", "My-TODOs-X", "--icon", str(ico), "--distpath", str(release_root),
                     "--add-data", f"{ROOT / 'LICENSE'};.",
                     "--add-data", f"{ROOT / 'NOTICE.md'};.",
                     "--add-data", f"{ROOT / 'icons' / 'icons.dat'};icons",
+                    "--add-data", f"{ROOT / 'assets' / 'ui'};assets/ui",
                     str(ROOT / "start.py")], cwd=ROOT, check=True)
-    destination = ROOT / "dist" / "My-TODOs-X"
+    destination = release_root / "My-TODOs-X"
     for name in ("README.md", "LICENSE", "NOTICE.md"):
         shutil.copy2(ROOT / name, destination / name)
     source = destination / "source"
@@ -38,7 +41,7 @@ def main():
         shutil.copytree(ROOT / name, source / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     licenses = destination / "third-party-licenses"
     licenses.mkdir(exist_ok=True)
-    for package in ("PyQt5", "PyQt5-Qt5", "PyQt5-sip", "PyInstaller"):
+    for package in ("PyQt5", "PyQt5-Qt5", "PyQt5-sip", "numpy", "PyInstaller"):
         distribution = importlib.metadata.distribution(package)
         for file in distribution.files or []:
             if "license" in str(file).lower() or Path(str(file)).name.lower().startswith("copying"):
@@ -52,7 +55,7 @@ def main():
     shutil.copy2(ROOT / "LICENSE", pyqt_license / "LICENSE-GPL-v3.txt")
     python_license = Path(sys.base_prefix) / "LICENSE.txt"
     if python_license.exists(): shutil.copy2(python_license, licenses / "Python-LICENSE.txt")
-    archive = shutil.make_archive(str(ROOT / "dist" / "My-TODOs-X-Windows-x64"), "zip", ROOT / "dist", "My-TODOs-X")
+    archive = shutil.make_archive(str(ROOT / "dist" / "My-TODOs-X-Windows-x64"), "zip", release_root, "My-TODOs-X")
     print(f"Windows 程序：{destination / 'My-TODOs-X.exe'}\nZIP：{archive}")
 
 if __name__ == "__main__": main()

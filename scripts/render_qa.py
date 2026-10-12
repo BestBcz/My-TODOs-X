@@ -12,9 +12,12 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFontDatabase
+from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import QApplication
 from task_store import TaskStore
 from ui import TODOApplication
+from widgets import WeeklyReportDialog
+from appearance import SiliconDialog
 
 def main():
     scale = os.environ.get("QT_SCALE_FACTOR", "1")
@@ -40,6 +43,14 @@ def main():
         window.show()
         app.processEvents()
         window.grab().save(str(output / f"light-{scale}.png"))
+        window.settings.set("dark_mode", True)
+        app.processEvents()
+        window.grab().save(str(output / f"dark-{scale}.png"))
+        report = WeeklyReportDialog(store, window)
+        report.show()
+        app.processEvents()
+        report.grab().save(str(output / f"weekly-{scale}.png"))
+        report.close()
         window.resize(380, 500)
         window.settings.set("dark_mode", True)
         app.processEvents()
@@ -48,10 +59,20 @@ def main():
         window.editor.text.setPlainText("试试新的编辑面板\n支持多行内容、分类和独立提醒")
         app.processEvents()
         window.grab().save(str(output / f"editor-{scale}.png"))
+        window.editor.options_button.setChecked(True)
+        QTest.qWait(60)
+        window.grab().save(str(output / f"editor-options-{scale}.png"))
         window.editor.baseline = None
         window.open_settings()
         app.processEvents()
         window.grab().save(str(output / f"settings-{scale}.png"))
+        window.settings_controls["always_on_top"].setChecked(True)
+        window.settings_controls["position_locked"].setChecked(True)
+        QTest.qWait(220)
+        window.grab().save(str(output / f"settings-active-{scale}.png"))
+        window.resize(500, 760)
+        app.processEvents()
+        window.grab().save(str(output / f"settings-wide-{scale}.png"))
         window.show_list()
         for n in range(500): store.add(f"性能测试事项 {n}：文字随窗口宽度自然换行。"*2)
         window.refresh()

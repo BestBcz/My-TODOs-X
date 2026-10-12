@@ -196,6 +196,41 @@ def test_closed_window_does_not_restart_queued_reminder(qtbot, tmp_path, monkeyp
     assert not window.reminders.timer.isActive()
     store.close()
 
+def test_original_header_fold_keeps_expanded_dimensions(window, qtbot):
+    window.resize(500,640)
+    qtbot.wait(20)
+    window.count_label.click()
+    assert not window.pages.isVisible()
+    assert window.height() < 320
+    window.settings.flush()
+    assert window.store.settings()["window_height"] == 640
+    window.count_label.click()
+    assert window.pages.isVisible() and window.height() == 640
+
+def test_search_and_editor_options_are_accessible(window):
+    assert not window.search.isVisible()
+    window.focus_search()
+    assert window.search.isVisible() and window.search_button.isChecked()
+    window.new_task()
+    assert not window.editor.metadata_panel.isVisible()
+    window.editor.options_button.click()
+    assert window.editor.metadata_panel.isVisible()
+    task = window.store.add("带提醒的事项", remind_at=datetime.now(timezone.utc)+timedelta(hours=1))
+    window.edit_task(task.id)
+    assert window.editor.metadata_panel.isVisible()
+
+def test_themed_category_input_returns_entered_text(qtbot, window):
+    from PyQt5.QtCore import QTimer
+    from PyQt5.QtWidgets import QApplication, QDialog, QLineEdit
+    from appearance import get_text
+    def fill():
+        dialog = QApplication.activeModalWidget()
+        dialog.findChild(QLineEdit).setText("新建工作分类")
+        dialog.accept()
+    QTimer.singleShot(0, fill)
+    text, accepted = get_text(window, "新建分类", "分类名称")
+    assert accepted and text == "新建工作分类"
+
 def test_tray_close_and_explicit_exit(window, monkeypatch):
     window.tray_available = True
     window.settings.set("close_behavior", "tray")
